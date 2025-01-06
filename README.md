@@ -67,8 +67,9 @@ function modify_card(card, response: number) {
 }
 ```
 
-And apply a linear interpolation for premature cards:
+And apply a linear interpolation for prematurely reviewed cards:
 
+```
 function modify_card(card, response, time_since_last_seen) {
   ...
   const t = Math.min(1, time_since_last_seen / card.repetition_interval);
@@ -76,7 +77,15 @@ function modify_card(card, response, time_since_last_seen) {
   card.repetition_interval = card.repetition_interval * lambda;
   ...
 }
+```
 
 Note: We also ignore the SM2's weird boost from 1 day to 6 days after your first correct review.
 
 Note: Since lambda relies on knowing the last time a card was seen, repetition intervals can be inaccurate if you're using two un-synced devices. The most common use-case is a single offline-device, that re-syncs before any other devices start reviewing, this shouldn't be a huge deal.
+
+## Building / Running locally.
+
+```
+$ npx parcel build static/index.html --no-cache
+$ python server.py
+```
