@@ -425,6 +425,8 @@ export class Context {
       }
     });
     let seen: Set<number> = new Set();
+    // By requiring source flows to be created before destination flows, we can use a min queue
+    // to guarantee we evaluate flows in the correct order.
     let Q = new UniqueMinQueue<Flow<any>>((flow: Flow<any>) =>
       forward ? flow.id : -flow.id
     );

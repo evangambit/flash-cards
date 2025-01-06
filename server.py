@@ -63,7 +63,6 @@ def make_operation(table, data, type='insert'):
 
 @app.route('/api/sync', methods=['POST'])
 def sync():
-  # TODO: make sure sync is only called once at a time.
   client_operations = request.json['operations']
   last_sync = request.json['last_sync']
   print(f'SYNCING {last_sync}')

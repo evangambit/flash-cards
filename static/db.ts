@@ -185,6 +185,28 @@ class CardsInDeckMaintainer {
   }
 }
 
+class DeckMaintainer {
+  _decks: StateFlow<Array<Deck>>;
+  constructor(db: FlashCardDb, ctx: Context) {
+    this._decks = ctx.create_state_flow([], "DeckMaintainer");
+    db.addEventListener('insert', (event: CustomEvent) => {
+      if (event.detail.table !== 'deck') {
+        const decks = this._decks.value.concat(<Deck>event.detail.data);
+        decks.sort((a, b) => a.date_created - b.date_created);
+        this._decks.value = decks;
+      }
+    });
+    db.getAll<Deck>("decks").then((decks: Array<Deck>) => {
+      decks.sort((a, b) => a.date_created - b.date_created);
+      this._decks.value = decks;
+      return decks;
+    });
+  }
+  get decks(): Flow<Array<Deck>> {
+    return this._decks;
+  }
+}
+
 class MonitorFlow<T> extends StateFlow<T> {
   _onHot: () => T;
   _onCold: () => T;
@@ -294,7 +316,6 @@ class Locker<T> {
 export class FlashCardDb extends EventTarget implements FlashCardDbApi {
   db: IDBDatabase;
   ctx: Context;
-  _decks: StateFlow<Array<Deck>>;
   _lastSyncTime: number;
   _numChangesSinceLastSync: StateFlow<number>;
   _numOverdue: NumOverdueMaintainer;
@@ -302,18 +323,18 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
   _reviewsForCards: ReviewsForCardsMaintainer;
   _syncLocker: Locker<void>;
   _isOffline: StateFlow<boolean>;
+  _decksMaintainer: DeckMaintainer;
   constructor(db: IDBDatabase, ctx: Context) {
     super();
     this.db = db;
     this.ctx = ctx;
-    this._decks = ctx.create_state_flow(<Array<Deck>>[], "db.decks");
+    this._decksMaintainer = new DeckMaintainer(this, ctx);
     this._lastSyncTime = 0;
     this._numChangesSinceLastSync = ctx.create_state_flow(0, "db.numChanges"); // TODO: read this from the database.
     this._numOverdue = new NumOverdueMaintainer(this, ctx);
     this._cardsInDecks = new CardsInDeckMaintainer(this, ctx);
     this._reviewsForCards = new ReviewsForCardsMaintainer(this, ctx);
     this._syncLocker = new Locker(() => this._sync());
-    // TODO: perform a sync when initing so this value is correct.
     this._isOffline = ctx.create_state_flow(true, "db.isOffline");
 
     this.addEventListener('insert', (event: CustomEvent) => {
@@ -324,10 +345,10 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
     this.get_unsynced_operations().then((operations: Array<Operation>) => {
       this._numChangesSinceLastSync.value = operations.length;
     });
-    this._initialize_last_sync_time();
+    this._initialize_last_sync_time().then(() => this.sync());
   }
-  _initialize_last_sync_time(): void {
-    Promise.all([
+  _initialize_last_sync_time(): Promise<void> {
+    return Promise.all([
       this._largest_remote_date("decks"),
       this._largest_remote_date("cards"),
       this._largest_remote_date("reviews"),
@@ -362,7 +383,7 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
     return this._numOverdue.numCardsOverdue(deck_id);
   }
   get decks(): Flow<Array<Deck>> {
-    return this._decks;
+    return this._decksMaintainer.decks;
   }
   cardsInDeck(deck_id: string): Flow<Array<Card>> {
     return this._cardsInDecks.deck(deck_id);
@@ -376,7 +397,6 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
   get_decks(): Promise<Array<Deck>> {
     return this.getAll<Deck>("decks").then((decks: Array<Deck>) => {
       decks.sort((a, b) => a.date_created - b.date_created);
-      this._decks.value = decks;
       return decks;
     });
   }
@@ -747,8 +767,6 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
         // Realistically, nobody listening for events cares if remote_date is updated.
         insertionPromises.push(this._insert(operation.table, operation.data, txn, /* suppressEvent= */ true));
       }
-
-      // TODO: add a listener that updates "this._decks.value".
 
       // Updating these are a bit more involved since we need to recompute learn state.
       for (let operation of remoteOperations) {
