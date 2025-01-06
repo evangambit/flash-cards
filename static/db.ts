@@ -268,6 +268,45 @@ class ReviewsForCardsMaintainer {
   }
 }
 
+class LearnStateForCardsMaintainer {
+  _db: FlashCardDb;
+  _ctx: Context;
+  _flows: Map<string, WeakRef<MonitorFlow<LearnState | undefined>>>;
+  constructor(db: FlashCardDb, ctx: Context) {
+    this._db = db;
+    this._ctx = ctx;
+    this._flows = new Map();
+  }
+  flow(card_id: string): Flow<LearnState | undefined> {
+    if (this._flows.has(card_id) && this._flows.get(card_id).deref()) {
+      return this._flows.get(card_id).deref();
+    }
+    const flow = new MonitorFlow<LearnState | undefined>(this._ctx, () => {
+      // When we become hot, we grab the initial value from the database and
+      // start listening.
+      this._db._get_learn_state_for_card(card_id).then((learnState: LearnState) => {
+        flow.value = learnState;
+      });
+      this._db.addEventListener('insert', onchange);
+      return undefined;
+    }, () => {
+      // When we become cold, we stop listening.
+      this._db.removeEventListener('insert', onchange);
+      return undefined;
+    }, `Monitor-${card_id}`);
+    this._flows.set(card_id, new WeakRef(flow));
+    const onchange = (event: CustomEvent) => {
+      if (event.detail.table === 'learn_state') {
+        const learnState = <LearnState>event.detail.data;
+        if (learnState.card_id === card_id) {
+          flow.value = learnState;
+        }
+      }
+    };
+    return flow;
+  }
+}
+
 /**
  * A simple locker that ensures
  * 1) the function f is only called once at a time, and
@@ -321,6 +360,7 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
   _numOverdue: NumOverdueMaintainer;
   _cardsInDecks: CardsInDeckMaintainer;
   _reviewsForCards: ReviewsForCardsMaintainer;
+  _learnStateForCardsMaintainer: LearnStateForCardsMaintainer;
   _syncLocker: Locker<void>;
   _isOffline: StateFlow<boolean>;
   _decksMaintainer: DeckMaintainer;
@@ -334,6 +374,7 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
     this._numOverdue = new NumOverdueMaintainer(this, ctx);
     this._cardsInDecks = new CardsInDeckMaintainer(this, ctx);
     this._reviewsForCards = new ReviewsForCardsMaintainer(this, ctx);
+    this._learnStateForCardsMaintainer = new LearnStateForCardsMaintainer(this, ctx);
     this._syncLocker = new Locker(() => this._sync());
     this._isOffline = ctx.create_state_flow(true, "db.isOffline");
 
@@ -378,6 +419,9 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
   }
   reviewsForCard(card_id: string): Flow<Array<Review>> {
     return this._reviewsForCards.flow(card_id);
+  }
+  learnStateForCard(card_id: string): Flow<LearnState> {
+    return this._learnStateForCardsMaintainer.flow(card_id);
   }
   numCardsOverdueInDeck(deck_id: string): Flow<number> {
     return this._numOverdue.numCardsOverdue(deck_id);

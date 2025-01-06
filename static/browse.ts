@@ -1,5 +1,5 @@
 import {Context, Flow, Consumer, StateFlow} from "./flow";
-import {FlashCardDb, Deck, Card, Review, ReviewResponse} from './db';
+import {FlashCardDb, Deck, Card, Review, ReviewResponse, LearnState} from './db';
 import {TableView} from './collection';
 import { NavigationView, TopBarProvider } from "./navigation";
 import { makeButton, makeTag } from "./checkbox";
@@ -28,28 +28,48 @@ interface CardCellUiState {
   history: Array<Review> | undefined;
 }
 
-class CardHistoryUi extends HTMLElement {
-  _consumer: Consumer<Array<Review>>;
+class ExpandedCardUi extends HTMLElement {
+  _consumer: Consumer<[Array<Review>, LearnState | undefined]>;
+  _detailsElement: HTMLElement;
+  _historyElement: HTMLElement;
   constructor(ctx: Context, db: FlashCardDb, card_id: string) {
     super();
-    this._consumer = db.reviewsForCard(card_id).consume((reviews: Array<Review>) => {
-      if (reviews.length === 0) {
-        this.innerHTML = '<hr>No reviews';
-        return;
+    this._detailsElement = document.createElement('div');
+    this.appendChild(this._detailsElement);
+    this._historyElement = document.createElement('div');
+    this.appendChild(this._historyElement);
+    this._consumer = db.reviewsForCard(card_id).concat(db.learnStateForCard(card_id)).consume((state) => {
+      const [reviews, learnState] = state;
+
+      // Update details element
+      // easiness_factor":2.6,"review_interval":224640,"scheduled_time
+      if (learnState) {
+        const easiness = (learnState.easiness_factor - 1.3) / (2.5 - 1.3);
+        this._detailsElement.innerHTML = `
+        <hr>
+        <table>
+        <tr><td>Next Review</td><td>${(new Date(learnState.scheduled_time * 1000)).toLocaleDateString()}</td></tr>
+        <tr><td>Interval</td><td>${learnState.review_interval}</td></tr>
+        <tr><td>Easiness</td><td>${easiness.toFixed(2)}</td></tr>
+        `;
+      } else {
+        this._detailsElement.innerHTML = '';
       }
+
+      // Update history element.
       if (reviews.length === 0) {
-        this.innerHTML = `<hr>Never reviewed`;
+        this._historyElement.innerHTML = `<hr>Never reviewed`;
       } else if (reviews.length > 5) {
-        this.innerHTML = `<hr>Reviewed ${reviews.length} times`;
+        this._historyElement.innerHTML = `<hr>Reviewed ${reviews.length} times`;
       } {
-        this.innerHTML = `<hr>`;
+        this._historyElement.innerHTML = `<hr>`;
       }
       // TODO: add when this is scheduled for.
       for (let review of reviews.slice(0, 5)) {
         const div = document.createElement('div');
         const date = new Date(review.date_created * 1000);
-        div.innerText = `${review.response <= ReviewResponse.incorrect_but_easy_to_recall ? "❌" : "✅"} ${date.toLocaleString()}`;
-        this.appendChild(div);
+        div.innerText = `${review.response <= ReviewResponse.incorrect_but_easy_to_recall ? "❌" : "✅"} ${review.response} -- ${date.toLocaleString()}`;
+        this._historyElement.appendChild(div);
       }
     });
   }
@@ -60,10 +80,10 @@ class CardHistoryUi extends HTMLElement {
     this._consumer.turn_off();
   }
 }
-customElements.define('card-history-ui', CardHistoryUi);
+customElements.define('expanded-card-ui', ExpandedCardUi);
 
 class CardCell extends HTMLElement {
-  _historyUi: CardHistoryUi;
+  _historyUi: ExpandedCardUi;
   _consumer: Consumer<CardCellUiState>;
   constructor(ctx: Context, db: FlashCardDb, card_id: string, flow: Flow<CardCellUiState>) {
     super();
@@ -90,7 +110,7 @@ class CardCell extends HTMLElement {
       frontDiv.innerText = card.front;
       backDiv.innerText = card.back;
     }), 'card cell consume');
-    this._historyUi = new CardHistoryUi(ctx, db, card_id);
+    this._historyUi = new ExpandedCardUi(ctx, db, card_id);
     this.addEventListener('click', () => {
       if (this.contains(this._historyUi)) {
         this.removeChild(this._historyUi);

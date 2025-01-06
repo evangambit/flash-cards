@@ -256,7 +256,7 @@ customElements.define("home-ui", HomeView);
 function main(db: FlashCardDb, ctx: Context) {
   console.log("Creating main view");
 
-  let debugButton = makeButton("Debug")
+  let debugButton = makeButton("Debug");
   debugButton.addEventListener("click", () => {
     ctx.print_graph();
     db.getAll("decks")
