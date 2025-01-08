@@ -83,7 +83,8 @@ def sync():
   if len(response) > 0:
     gCounter = max(x['data']['remote_date'] for x in response)
   else:
-    # TODO: is this okay?
+    # last_sync is apparently bigger than the remote_date for all server data. This should
+    # probably never happen, but if it does... then last_sync is a valid value for gCounter.
     gCounter = last_sync
   gCounter += 1
 

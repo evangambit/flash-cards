@@ -857,6 +857,8 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
       });
     })
     // TODO: Clean up obsolete card histories to save space?
+    // Reviewing 12 cards once each uses up 1/800k-th of our quota. Reviewing 1000 cards a day for a year
+    // uses up 3.7% of our quota, so probably not a huge deal for now.
     .catch((error) => {
       if (error instanceof TypeError) {
         console.log("No internet connection");
