@@ -5,6 +5,7 @@ import {ReviewQueue, ReviewQueueState, ReviewQueueStateEnum} from "./review_queu
 export interface ButtonUiState {
   text: string;
   enabled: boolean;
+  hotkey: string;
   onClick: () => void;
 }
 
@@ -75,10 +76,14 @@ export class ReviewerViewModel {
 
 class ButtonPanel extends HTMLElement {
   _consumer: Consumer<Array<ButtonUiState>>;
+  _hotkeyListener: (e: KeyboardEvent) => void;
+  _key2button: Map<string, () => void>;
   constructor(flow: Flow<Array<ButtonUiState>>) {
     super();
+    this._key2button = new Map();
     this._consumer = flow.consume((buttons: Array<ButtonUiState>) => {
       this.innerHTML = '';
+      this._key2button.clear();
       buttons.forEach((button: ButtonUiState) => {
         const buttonElement = document.createElement('button');
         buttonElement.innerText = button.text;
@@ -87,15 +92,26 @@ class ButtonPanel extends HTMLElement {
           buttonElement.setAttribute('disabled', 'true');
           button.onClick();
         };
+        if (button.hotkey.length > 0) {
+          this._key2button.set(button.hotkey, button.onClick);
+        }
         this.appendChild(buttonElement);
       });
     }, 'ButtonPanel.consume');
+    this._hotkeyListener = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      if (this._key2button.has(key)) {
+        this._key2button.get(key)();
+      }
+    };
   }
   connectedCallback() {
     this._consumer.turn_on();
+    window.addEventListener('keydown', this._hotkeyListener);
   }
   disconnectedCallback() {
     this._consumer.turn_off();
+    window.removeEventListener('keydown', this._hotkeyListener);
   }
 }
 customElements.define('button-panel', ButtonPanel);
@@ -165,14 +181,16 @@ export class ReviewerViewModelImpl extends ReviewerViewModel implements Reviewer
             enabled: true,
             onClick: () => {
               dismiss();
-            }
+            },
+            hotkey: '',
           },
           {
             text: 'GIMME MOAR',
             enabled: true,
             onClick: () => {
               this._queue.load_more();
-            }
+            },
+            hotkey: '',
           },
         ];
         return {
@@ -201,6 +219,7 @@ export class ReviewerViewModelImpl extends ReviewerViewModel implements Reviewer
             onClick: () => {
               loadNext(ReviewResponse.perfect);
             },
+            hotkey: '1',
           },
           {
             text: "Correct (2)",
@@ -208,6 +227,7 @@ export class ReviewerViewModelImpl extends ReviewerViewModel implements Reviewer
             onClick: () => {
               loadNext(ReviewResponse.correct_after_hesitation);
             },
+            hotkey: '2',
           },
           {
             text: "Hard (3)",
@@ -215,6 +235,7 @@ export class ReviewerViewModelImpl extends ReviewerViewModel implements Reviewer
             onClick: () => {
               loadNext(ReviewResponse.correct_with_serious_difficulty);
             },
+            hotkey: '3',
           },
           {
             text: "Wrong (but close!) (4)",
@@ -222,6 +243,7 @@ export class ReviewerViewModelImpl extends ReviewerViewModel implements Reviewer
             onClick: () => {
               loadNext(ReviewResponse.incorrect_but_easy_to_recall);
             },
+            hotkey: '4',
           },
           {
             text: "Fail (5)",
@@ -229,6 +251,7 @@ export class ReviewerViewModelImpl extends ReviewerViewModel implements Reviewer
             onClick: () => {
               loadNext(ReviewResponse.complete_blackout);
             },
+            hotkey: '5',
           },
         ]);
       }

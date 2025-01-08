@@ -140,14 +140,34 @@ class CardMakerUi extends HTMLElement {
     this.appendChild(front);
     const back = document.createElement('textarea');
     back.placeholder = 'Back';
+
+    const shouldDisabledButton = () => {
+      const isFrontEmpty = front.value.replace(/\s+/g, '').length === 0;
+      const isBackEmpty = back.value.replace(/\s+/g, '').length === 0;
+      return isFrontEmpty || isBackEmpty;
+    }
+
     this.appendChild(back);
     const saveButton = makeButton('Save');
     saveButton.addEventListener('click', () => {
+      if (shouldDisabledButton()) {
+        return;
+      }
       db.add_card(deck.deck_id, front.value, back.value).then(() => {
         NavigationView.above(this).dismiss();
       });
     });
     this.appendChild(saveButton);
+    const onchange = () => {
+      if (shouldDisabledButton()) {
+        saveButton.setAttribute('disabled', 'true');
+      } else {
+        saveButton.removeAttribute('disabled');
+      }
+    };
+    front.addEventListener('input', onchange);
+    back.addEventListener('input', onchange);
+    onchange();
   }
 }
 customElements.define('card-maker-ui', CardMakerUi);

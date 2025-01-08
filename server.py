@@ -135,5 +135,8 @@ def reset():
   db.commit()
   return 'Database reset.', 200
 
+# flask --app server:app run --host localhost --port 5002
+# gunicorn --certfile cert.pem --keyfile key.pem -b 0.0.0.0:5002 'server:app' --workers=1
+# openssl req -newkey rsa:2048 -new -nodes -x509 -days 3650 -keyout key.pem -out cert.pem
 if __name__ == '__main__':
-  app.run(port=5002)
+  app.run()

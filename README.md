@@ -86,6 +86,6 @@ Note: Since lambda relies on knowing the last time a card was seen, repetition i
 ## Building / Running locally.
 
 ```
-$ npx parcel build static/index.html --no-cache --no-content-hash
+$ npx parcel build frontend/index.html --no-cache --no-content-hash
 $ python server.py
 ```

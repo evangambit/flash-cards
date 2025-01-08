@@ -412,7 +412,8 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
         }
         resolve(cursor.value.remote_date);
       };
-      request.onerror = () => {
+      request.onerror = (err) => {
+        console.warn(err);
         alert('Something went wrong');
       }
     });
