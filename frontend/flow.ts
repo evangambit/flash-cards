@@ -167,17 +167,6 @@ export class Flow<T> {
   }
 }
 
-export class ConstantFlow<T> extends Flow<T> {
-  _value: T;
-  constructor(context: Context, value: T, name?: string) {
-    super(context, [], name || "StateFlow");
-    this._value = value;
-  }
-  _source_changed(): boolean {
-    return true; // TODO: can this be false?
-  }
-}
-
 export class StateFlow<T> extends Flow<T> {
   _value: T;
   constructor(context: Context, initialValue: T, name?: string) {
@@ -289,10 +278,6 @@ export class Context {
     const flow = new StateFlow(this, initialValue, name);
     this._stateFlows.add(new WeakRef(flow));
     return flow;
-  }
-
-  create_constant_flow<T>(value: T, name?: string): ConstantFlow<T> {
-    return new ConstantFlow(this, value, name);
   }
 
   print_graph() {
