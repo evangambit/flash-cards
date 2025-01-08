@@ -289,3 +289,7 @@ function main(db: FlashCardDb, ctx: Context) {
   const navigationView = new NavigationView(ctx, new HomeView(db, ctx), buttons);
   document.body.appendChild(navigationView);
 }
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register(new URL('./serviceworker.js', import.meta.url));
+}

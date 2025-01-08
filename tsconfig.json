@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "module": "commonjs",
+    "module": "es2020",
     "outDir": "dist/",
     "noImplicitAny": true,
     "removeComments": true,
@@ -13,3 +13,4 @@
     "frontend/*"
   ]
 }
+//  'es2020', 'es2022', 'esnext', 'system', 'node16', or 'nodenext'.

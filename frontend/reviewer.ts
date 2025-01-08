@@ -179,18 +179,18 @@ export class ReviewerViewModelImpl extends ReviewerViewModel implements Reviewer
           {
             text: 'Home',
             enabled: true,
+            hotkey: '',
             onClick: () => {
               dismiss();
             },
-            hotkey: '',
           },
           {
             text: 'GIMME MOAR',
             enabled: true,
+            hotkey: '',
             onClick: () => {
               this._queue.load_more();
             },
-            hotkey: '',
           },
         ];
         return {
