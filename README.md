@@ -1,6 +1,11 @@
 
 A JavaScript "flow" library, and a flash card website that works offline.
 
+##
+
+TODO: delete cards
+TODO: search for cards
+
 ## Syncing
 
 Locally, every row has two dates: the date it was locally created, and the date the server learned about it.

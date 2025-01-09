@@ -48,7 +48,7 @@ class CardUi extends HTMLElement {
         return;
       }
       this.style.cursor = uiState.flip ? 'pointer' : 'default';
-      this._content.innerText = uiState.content;
+      this._content.innerHTML = uiState.content;
       this.style.display = 'block';
     }, 'ReviewCardUi.consume');
   }

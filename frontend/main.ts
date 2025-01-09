@@ -3,7 +3,7 @@ import { ReviewerUi, ReviewerViewModelImpl } from "./reviewer";
 import { FlashCardDb, Deck, Card } from "./db";
 import { BrowseViewModel, BrowseUi } from "./browse";
 import { TableView } from "./collection";
-import { makeButton, makeTag } from "./checkbox";
+import { makeButton, makeImage, makeTag } from "./checkbox";
 import { NavigationView, TopBarProvider } from "./navigation";
 
 const USE_DEBUG_DATA = false;
@@ -173,17 +173,22 @@ class SyncButton extends HTMLElement {
   _consumer: Consumer<number>;
   constructor(db: FlashCardDb, ctx: Context) {
     super();
-    this.innerText = "Sync";
     this.setAttribute('tabIndex', '0');
     this.addEventListener("click", () => {
       db.sync().then(() => {
         console.log("Synced");
       });
     });
+
+    const icon = makeImage(new URL('./assets/sync.png', import.meta.url), {
+      "height": "100%",
+    });
   
     this._consumer = db.numChangesSinceLastSync
       .consume((numChanges) => {
-        this.innerText = `Sync (${numChanges})`;
+        this.innerHTML = '';
+        this.appendChild(icon);
+        this.appendChild(makeTag('span', numChanges + ''));
         if (numChanges === 0) {
           this.setAttribute('disabled', 'true');
         } else {
@@ -256,7 +261,7 @@ customElements.define("home-ui", HomeView);
 function main(db: FlashCardDb, ctx: Context) {
   console.log("Creating main view");
 
-  let debugButton = makeButton("Debug");
+  let debugButton = makeButton("🪳");
   debugButton.addEventListener("click", () => {
     ctx.print_graph();
     db.getAll("decks")

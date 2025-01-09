@@ -124,20 +124,62 @@ def reset():
   cursor.execute('CREATE TABLE IF NOT EXISTS cards (card_id STRING PRIMARY KEY, deck_id STRING, front STRING, back STRING, date_created REAL, remote_date INTEGER)')
   cursor.execute('CREATE TABLE IF NOT EXISTS reviews (review_id STRING PRIMARY KEY, card_id STRING, deck_id STRING, response STRING, date_created REAL, remote_date INTEGER)')
 
+  decks = []
+  for i in range(2):
+    deck = {
+      'deck_id': uuid.uuid4().hex,
+      'cards': [],
+      'name': f'Deck {i}'
+    }
+    for j in range(10):
+      deck['cards'].append({
+        'card_id': uuid.uuid4().hex,
+        'deck_id': deck['deck_id'],
+        'front': f'Front {i + 1}',
+        'back': f'Front {i + 1}',
+      })
+    decks.append(deck)
+  
+  with open('vocab.txt', 'r') as f:
+    deck = {
+      'deck_id': uuid.uuid4().hex,
+      'cards': [],
+      'name': f'Chinese | English'
+    }
+    lines = f.read().split('\n')
+    for i in range(0, len(lines), 2):
+      if lines[i + 0] == '' or lines[i + 1] == '':
+        break
+      a = f'Chinese for: {lines[i + 0]}'
+      b = f'English for: {lines[i + 1]}'
+      deck['cards'].append({
+        'card_id': uuid.uuid4().hex, 'deck_id': deck['deck_id'], 'front': a, 'back': b,
+      })
+      deck['cards'].append({
+        'card_id': uuid.uuid4().hex, 'deck_id': deck['deck_id'], 'front': b, 'back': a,
+      })
+    decks.append(deck)
+
   # Add some sample data.
   t = time.time()
-  for j in range(2):
-    deck_id = uuid.uuid4().hex
-    cursor.execute('INSERT INTO decks VALUES (?, ?, ?, ?)', (deck_id, f'Deck {j + 1}', t, 1))
-    for i in range(10 if j == 1 else 2):
-      card_id = uuid.uuid4().hex
-      cursor.execute('INSERT INTO cards VALUES (?, ?, ?, ?, ?, ?)', (card_id, deck_id, f'Front {i + 1}', f'Back {i + 1}', t, 1))
+  for deck in decks:
+    deck_name = deck['name']
+    deck_id = deck['cards'][0]['deck_id']
+    cursor.execute('INSERT INTO decks VALUES (?, ?, ?, ?)', (deck_id, deck_name, t, 1))
+    for card in deck['cards']:
+      cursor.execute('INSERT INTO cards VALUES (?, ?, ?, ?, ?, ?)', (card['card_id'], card['deck_id'], card['front'], card['back'], t, 1))
 
   db.commit()
   return 'Database reset.', 200
+
+try:
+  import socket;
+  print('http://' + (([ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")] or [[(s.connect(("8.8.8.8", 53)), s.getsockname()[0], s.close()) for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) + ["no IP found"])[0] + ':8000')
+except Exception:
+  pass
 
 # flask --app server:app run --host localhost --port 5002
 # gunicorn --certfile cert.pem --keyfile key.pem -b 0.0.0.0:5002 'server:app' --workers=1
 # openssl req -newkey rsa:2048 -new -nodes -x509 -days 3650 -keyout key.pem -out cert.pem
 if __name__ == '__main__':
-  app.run()
+  app.run(debug=True, port=5002)

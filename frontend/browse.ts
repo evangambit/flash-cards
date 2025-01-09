@@ -2,7 +2,7 @@ import {Context, Flow, Consumer, StateFlow} from "./flow";
 import {FlashCardDb, Deck, Card, Review, ReviewResponse, LearnState} from './db';
 import {TableView} from './collection';
 import { NavigationView, TopBarProvider } from "./navigation";
-import { makeButton, makeTag } from "./checkbox";
+import { makeButton, makeTag, makeImage } from "./checkbox";
 
 interface BrowseUiState {
   cards: Array<Card>;
@@ -107,8 +107,8 @@ class CardCell extends HTMLElement {
       const card = uiState.card;
       this.style.display = 'block';
       idDiv.innerText = card.card_id;
-      frontDiv.innerText = card.front;
-      backDiv.innerText = card.back;
+      frontDiv.innerHTML = card.front;
+      backDiv.innerHTML = card.back;
     }), 'card cell consume');
     this._historyUi = new ExpandedCardUi(ctx, db, card_id);
     this.addEventListener('click', () => {
@@ -140,6 +140,7 @@ class CardMakerUi extends HTMLElement {
     this.appendChild(front);
     const back = document.createElement('textarea');
     back.placeholder = 'Back';
+    this.appendChild(back);
 
     const shouldDisabledButton = () => {
       const isFrontEmpty = front.value.replace(/\s+/g, '').length === 0;
@@ -147,7 +148,20 @@ class CardMakerUi extends HTMLElement {
       return isFrontEmpty || isBackEmpty;
     }
 
-    this.appendChild(back);
+    const buttonPanel = document.createElement('div');
+    buttonPanel.style.display = 'flex';
+    buttonPanel.style.flexDirection = 'row';
+
+    const cancelButton = makeButton('Cancel');
+    cancelButton.addEventListener('click', () => {
+      NavigationView.above(this).dismiss();
+    });
+    buttonPanel.appendChild(cancelButton);
+
+    buttonPanel.appendChild(makeTag('div', '', {
+      'flex': 1,
+    }))
+
     const saveButton = makeButton('Save');
     saveButton.addEventListener('click', () => {
       if (shouldDisabledButton()) {
@@ -157,7 +171,7 @@ class CardMakerUi extends HTMLElement {
         NavigationView.above(this).dismiss();
       });
     });
-    this.appendChild(saveButton);
+    buttonPanel.appendChild(saveButton);
     const onchange = () => {
       if (shouldDisabledButton()) {
         saveButton.setAttribute('disabled', 'true');
@@ -165,12 +179,31 @@ class CardMakerUi extends HTMLElement {
         saveButton.removeAttribute('disabled');
       }
     };
+
+    this.appendChild(buttonPanel);
+
     front.addEventListener('input', onchange);
     back.addEventListener('input', onchange);
     onchange();
   }
 }
 customElements.define('card-maker-ui', CardMakerUi);
+
+class BrowseHeaderUi extends HTMLElement {
+  constructor(ctx: Context, db: FlashCardDb) {
+    super();
+    this.style.display = 'flex';
+    this.style.flexDirection = 'row';
+    this.style.padding = '0 0.5em';
+    const searchBar = document.createElement('input');
+    searchBar.style.flex = '1';
+    searchBar.setAttribute('placeholder', 'Search');
+    this.appendChild(searchBar);
+    const orderDropdown = makeButton('O');
+    this.appendChild(orderDropdown);
+  }
+}
+customElements.define('browse-header-ui', BrowseHeaderUi);
 
 export class BrowseUi extends HTMLElement implements TopBarProvider {
   _landscape: StateFlow<boolean>;
@@ -187,6 +220,7 @@ export class BrowseUi extends HTMLElement implements TopBarProvider {
       }
       return r;
     }, 'BrowseUiState -> Map');
+    this.appendChild(new BrowseHeaderUi(ctx, db));
     let tableView = new TableView({
       viewForId: (card_id: string) => {
         const flow = cardMap.map(map => {
@@ -204,7 +238,10 @@ export class BrowseUi extends HTMLElement implements TopBarProvider {
     tableView.style.maxHeight = '100%';
     this.appendChild(tableView);
 
-    const newCardButton = makeButton('New Card');
+    const newCardButton = makeButton(makeImage(new URL('./assets/new-card.png', import.meta.url), {
+      'filter': 'brightness(0)',
+      'height': '100%',
+    }));
     newCardButton.addEventListener('click', () => {
       NavigationView.above(this).present(new CardMakerUi(ctx, db, deck));
     });

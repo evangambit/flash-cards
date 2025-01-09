@@ -1,5 +1,5 @@
 import { Context, Consumer, Flow, StateFlow } from "./flow";
-import { makeButton } from "./checkbox";
+import { makeButton, makeImage } from "./checkbox";
 
 function iff<T>(condition: T | undefined | null, f: (arg: T) => void) {
   if (condition) {
@@ -14,7 +14,7 @@ export interface TopBarProvider {
 }
 
 export class NavigationView extends HTMLElement {
-  _baseTopBarItems: Flow<Array<HTMLElement>>;
+  _baseTopBarItems: StateFlow<Array<HTMLElement>>;
   _topBarProviders: Array<Flow<Array<HTMLElement>>>;
   _topbarConsumer: Consumer<Array<HTMLElement>>;
   _stackFlow: StateFlow<Array<HTMLElement>>;
@@ -45,6 +45,7 @@ export class NavigationView extends HTMLElement {
     this._topbar.style.left = "50%";
     this._topbar.style.top = "0";
     this._topbar.style.transform = "translate(-50%, 0)";
+    this._topbar.classList.add('topbar');
 
     this._content.style.flex = '1';
     this._content.style.position = "relative";
@@ -55,18 +56,22 @@ export class NavigationView extends HTMLElement {
     this._content.style.height = "100%";
     this._content.style.transform = "translate(-50%, 0)";
 
-    const backButton = makeButton("Back");
+    const backButton = makeButton(makeImage(new URL('./assets/back.png', import.meta.url), {
+      'height': '100%',
+    }));
     backButton.addEventListener('click', () => {
       this.pop();
     })
-    this._baseTopBarItems = ctx.create_state_flow([
-      backButton,
-    ].concat(topbarButtons));
+    this._baseTopBarItems = ctx.create_state_flow((topbarButtons));
     this.addEventListener('stack-change', () => {
       if (this.length > 1) {
-        backButton.removeAttribute('disabled');
+        if (!this._baseTopBarItems.value.includes(backButton)) {
+          this._baseTopBarItems.value = [backButton].concat(this._baseTopBarItems.value);
+        }
       } else {
-        backButton.setAttribute('disabled', 'true');
+        if (this._baseTopBarItems.value.includes(backButton)) {
+          this._baseTopBarItems.value = this._baseTopBarItems.value.filter(element => element !== backButton);
+        }
       }
     });
 

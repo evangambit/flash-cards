@@ -24,11 +24,24 @@ export class CheckboxUi extends HTMLElement {
 }
 customElements.define('checkbox-ui', CheckboxUi);
 
-export function makeButton(text: string): HTMLElement {
+export function makeImage(src: URL, style: any = {}): HTMLImageElement {
+  const element = <HTMLImageElement>document.createElement('img');
+  element.src = src.href;
+  for (let k in style) {
+    element.style[k] = style[k];
+  }
+  return element;
+}
+
+export function makeButton(content: (string | HTMLElement)): HTMLElement {
   const button = document.createElement('div');
   button.classList.add('button');
   button.setAttribute('tabIndex', '0');
-  button.innerText = text;
+  if (typeof(content) === "string") {
+    button.innerText = content;
+  } else {
+    button.appendChild(content);
+  }
   // Listen for disable attribute changes
   const observer = new MutationObserver((mutationsList, observer) => {
     const disabled = button.hasAttribute('disabled');
@@ -53,10 +66,13 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-export function makeTag(tagName: string, content?: string): HTMLElement {
+export function makeTag(tagName: string, content?: string, style = {}): HTMLElement {
   let tag = document.createElement(tagName);
   if (content) {
     tag.innerText = content;
+  }
+  for (let k in style) {
+    tag.style[k] = style[k];
   }
   return tag;
 }
