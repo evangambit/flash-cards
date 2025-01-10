@@ -50,7 +50,7 @@ export class NavigationView extends HTMLElement {
     this._content.style.flex = '1';
     this._content.style.position = "relative";
     this._content.style.left = "50%";
-    this._content.style.top = "0";
+    this._content.style.display = 'flex';
     this._content.style.width = "100%";
     this._content.style.maxWidth = "30em";
     this._content.style.height = "100%";
@@ -107,13 +107,7 @@ export class NavigationView extends HTMLElement {
       (<HTMLElement>lastChild).style.display = "none";
     });
 
-    view.style.display = "block";
-    view.style.position = "absolute";
-    view.style.left = "50%";
-    view.style.top = "50%";
-    view.style.transform = "translate(-50%, -50%)";
-    view.style.width = "100%";
-    view.style.maxHeight = "100%";
+    view.style.flex = '1';
     this._content.appendChild(view);
     this.dispatchEvent(new CustomEvent("stack-change", {
       detail: {

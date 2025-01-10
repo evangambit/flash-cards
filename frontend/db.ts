@@ -121,6 +121,14 @@ class NumOverdueMaintainer {
         }
       }
     });
+    db.addEventListener('drop', (event: CustomEvent) => {
+      if (event.detail.table === 'learn_state') {
+        for (let deck_id of this._cardsToReview.keys()) {
+          this._cardsToReview.set(deck_id, new Set());
+          this._numCardsOverdue.get(deck_id).value = 0;
+        }
+      }
+    });
   }
   numCardsOverdue(deck_id: string): Flow<number> {
     if (this._numCardsOverdue.has(deck_id)) {
@@ -160,6 +168,14 @@ class CardsInDeckMaintainer {
         }
       }
     });
+    db.addEventListener('drop', (event: CustomEvent) => {
+      if (event.detail.table === 'cards') {
+        for (let k of this._flows.keys()) {
+          this._flows.get(k).value = [];
+          this._countFlows.get(k).value = 0;
+        }
+      }
+    });
   }
   deck(deck_id: string): Flow<Array<Card>> {
     if (this._flows.has(deck_id)) {
@@ -190,10 +206,15 @@ class DeckMaintainer {
   constructor(db: FlashCardDb, ctx: Context) {
     this._decks = ctx.create_state_flow([], "DeckMaintainer");
     db.addEventListener('insert', (event: CustomEvent) => {
-      if (event.detail.table !== 'deck') {
+      if (event.detail.table === 'decks') {
         const decks = this._decks.value.concat(<Deck>event.detail.data);
         decks.sort((a, b) => a.date_created - b.date_created);
         this._decks.value = decks;
+      }
+    });
+    db.addEventListener('drop', (event: CustomEvent) => {
+      if (event.detail.table === 'decks') {
+        this._decks.value = [];
       }
     });
     db.getAll<Deck>("decks").then((decks: Array<Deck>) => {
@@ -724,6 +745,10 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
     txn.objectStore("cards").clear();
     txn.objectStore("reviews").clear();
     txn.objectStore("learn_state").clear();
+    this.dispatchEvent(new CustomEvent("drop", {detail: { table: "decks" }}));
+    this.dispatchEvent(new CustomEvent("drop", {detail: { table: "cards" }}));
+    this.dispatchEvent(new CustomEvent("drop", {detail: { table: "reviews" }}));
+    this.dispatchEvent(new CustomEvent("drop", {detail: { table: "learn_state" }}));
     return new Promise<void>((resolve, reject) => {
       txn.oncomplete = () => {
         resolve();
@@ -734,8 +759,6 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
     }).then(() => {
       this._lastSyncTime = 0;
       return this.sync();
-    }).then(() => {
-      window.location.reload();
     });
   }
 
