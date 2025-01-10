@@ -79,13 +79,8 @@ export class NavigationView extends HTMLElement {
     // Dispatch this so the provider of topBarButtons can subscribe to us
     // before the first stack-change event is dispatched.
     Promise.resolve().then(() => {
+      this._updateTopBar();
       this.push(rootView);
-      // If the root view doesn't provide any items, push will not call _updateTopBar,
-      // so we won't encorporate the topBarButtons into the top bar. To solve this, we
-      // call _updateTopBar here.
-      if (!(<any>rootView).topBarItems) {
-        this._updateTopBar();
-      }
     });
   }
   _updateTopBar() {
@@ -188,10 +183,14 @@ export class NavigationView extends HTMLElement {
     return <NavigationView>parent;
   }
   connectedCallback() {
-    this._topbarConsumer.turn_on();
+    if (this._topbarConsumer) {
+      this._topbarConsumer.turn_on();
+    }
   }
   disconnectedCallback() {
-    this._topbarConsumer.turn_off();
+    if (this._topbarConsumer) {
+      this._topbarConsumer.turn_off();
+    }
   }
 }
 customElements.define("navigation-view", NavigationView);

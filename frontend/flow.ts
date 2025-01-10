@@ -245,6 +245,7 @@ export class Context {
   _recentlyTurnedOn: Set<Flow<any>>;
   _recentlyTurnedOff: Set<Flow<any>>;
   _isUpdating: boolean;
+  _frozen: boolean;
   _stateFlows: Set<WeakRef<StateFlow<any>>>; // Useful for debugging.
   constructor() {
     this.flowCount = 0;
@@ -253,6 +254,7 @@ export class Context {
     this._recentlyTurnedOff = new Set();
     this._isUpdating = false;
     this._stateFlows = new Set();
+    this._frozen = false;
   }
 
   flatten<T>(flows: Array<Flow<Array<T>>>): Flow<Array<T>> {
@@ -278,6 +280,16 @@ export class Context {
     const flow = new StateFlow(this, initialValue, name);
     this._stateFlows.add(new WeakRef(flow));
     return flow;
+  }
+
+  freeze() {
+    this._frozen = true;
+  }
+  thaw() {
+    this._frozen = false;
+    if (this._recentlyTurnedOff.size > 0 || this._recentlyTurnedOn.size > 0 || this._needsUpdate.size > 0) {
+      this._dispatch_update();
+    }
   }
 
   print_graph() {
@@ -306,6 +318,9 @@ export class Context {
   }
 
   _dispatch_update(): void {
+    if (this._frozen) {
+      return;
+    }
     Promise.resolve().then(() => {
       this._update();
     });

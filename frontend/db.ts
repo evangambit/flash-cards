@@ -737,6 +737,7 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
   
   reset(): Promise<void> {
     // Drop all tables and re-download everything.
+    this.ctx.freeze();
     const txn = this.db.transaction(
       ["decks", "cards", "reviews", "learn_state"],
       "readwrite"
@@ -759,6 +760,8 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
     }).then(() => {
       this._lastSyncTime = 0;
       return this.sync();
+    }).then(() => {
+      this.ctx.thaw();
     });
   }
 
@@ -890,6 +893,6 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
       }
       console.error(error);
       return error;
-    });
+    })
   }
 }
