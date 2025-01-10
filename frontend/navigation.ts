@@ -80,6 +80,12 @@ export class NavigationView extends HTMLElement {
     // before the first stack-change event is dispatched.
     Promise.resolve().then(() => {
       this.push(rootView);
+      // If the root view doesn't provide any items, push will not call _updateTopBar,
+      // so we won't encorporate the topBarButtons into the top bar. To solve this, we
+      // call _updateTopBar here.
+      if (!(<any>rootView).topBarItems) {
+        this._updateTopBar();
+      }
     });
   }
   _updateTopBar() {
