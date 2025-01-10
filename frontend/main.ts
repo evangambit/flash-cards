@@ -94,43 +94,48 @@ function td_with_child(child: HTMLElement): HTMLElement {
 
 class DeckCell extends HTMLElement {
   _consumer: Consumer<any>;
-  constructor(db: FlashCardDb, deck: Deck, reviewDeck: (deck: Deck) => void, browseDeck: (deck: Deck) => void) {
+  constructor(
+    db: FlashCardDb,
+    deck: Deck,
+    reviewDeck: (deck: Deck) => void,
+    browseDeck: (deck: Deck) => void
+  ) {
     super();
-      this._consumer = db
-        .numCardsOverdueInDeck(deck.deck_id)
-        .concat(db.numCardsInDeck(deck.deck_id))
-        .consume(([numOverdue, numCardsInDeck]) => {
-          this.innerHTML = '';
-          this.style.display = 'flex';
-          this.style.flexDirection = 'column';
-          this.style.padding = '0.5em';
-          this.style.border = '1px solid black';
-          this.style.borderRadius = '0.5em';
-          this.style.margin = '0.5em';
+    this._consumer = db
+      .numCardsOverdueInDeck(deck.deck_id)
+      .concat(db.numCardsInDeck(deck.deck_id))
+      .consume(([numOverdue, numCardsInDeck]) => {
+        this.innerHTML = "";
+        this.style.display = "flex";
+        this.style.flexDirection = "column";
+        this.style.padding = "0.5em";
+        this.style.border = "1px solid black";
+        this.style.borderRadius = "0.5em";
+        this.style.margin = "0.5em";
 
-          const label = document.createElement('div');
-          label.style.whiteSpace = 'nowrap';
-          label.innerText = `${deck.deck_name} (${numCardsInDeck} cards)`;
-          this.appendChild(label);
+        const label = document.createElement("div");
+        label.style.whiteSpace = "nowrap";
+        label.innerText = `${deck.deck_name} (${numCardsInDeck} cards)`;
+        this.appendChild(label);
 
-          this.appendChild(makeTag('div', `Overdue: ${numOverdue}`));
+        this.appendChild(makeTag("div", `Overdue: ${numOverdue}`));
 
-          const buttonPanel = document.createElement('div');
-  
-          const reviewButton = makeButton("Review");
-          reviewButton.addEventListener('click', () => {
-            reviewDeck(deck);
-          });
-          buttonPanel.appendChild(reviewButton);
-  
-          const browseButton = makeButton("Browse");
-          browseButton.addEventListener('click', () => {
-            browseDeck(deck);
-          });
-          buttonPanel.appendChild(browseButton);
+        const buttonPanel = document.createElement("div");
 
-          this.appendChild(buttonPanel);
+        const reviewButton = makeButton("Review");
+        reviewButton.addEventListener("click", () => {
+          reviewDeck(deck);
         });
+        buttonPanel.appendChild(reviewButton);
+
+        const browseButton = makeButton("Browse");
+        browseButton.addEventListener("click", () => {
+          browseDeck(deck);
+        });
+        buttonPanel.appendChild(browseButton);
+
+        this.appendChild(buttonPanel);
+      });
   }
   connectedCallback() {
     this._consumer.turn_on();
@@ -169,33 +174,54 @@ class DeckPanel extends HTMLElement {
 }
 customElements.define("deck-panel", DeckPanel);
 
-class SyncButton extends HTMLElement {
-  _consumer: Consumer<number>;
+class SettingsUi extends HTMLElement {
   constructor(db: FlashCardDb, ctx: Context) {
     super();
-    this.setAttribute('tabIndex', '0');
+  }
+}
+customElements.define("settings-ui", SettingsUi);
+
+class SettingsButton extends HTMLElement {
+  constructor(db: FlashCardDb, ctx: Context) {
+    super();
+    this.setAttribute("tabIndex", "0");
+    this.classList.add("button");
+    this.innerText = "S";
+    this.addEventListener("click", () => {
+      NavigationView.above(this).push(new SettingsUi(db, ctx));
+    });
+  }
+}
+customElements.define("settings-button", SettingsButton);
+
+class SyncButton extends HTMLElement {
+  _consumer: Consumer<number>;
+  _ctx: Context;
+  constructor(db: FlashCardDb, ctx: Context) {
+    super();
+    this._ctx = ctx;
+    this.setAttribute("tabIndex", "0");
+    this.classList.add("button");
     this.addEventListener("click", () => {
       db.sync().then(() => {
         console.log("Synced");
       });
     });
 
-    const icon = makeImage(new URL('./assets/sync.png', import.meta.url), {
-      "height": "100%",
+    const icon = makeImage(new URL("./assets/sync.png", import.meta.url), {
+      height: "100%",
     });
-  
-    this._consumer = db.numChangesSinceLastSync
-      .consume((numChanges) => {
-        this.innerHTML = '';
-        this.appendChild(icon);
-        this.appendChild(makeTag('span', numChanges + ''));
-        if (numChanges === 0) {
-          this.setAttribute('disabled', 'true');
-        } else {
-          this.removeAttribute('disabled');
-        }
-      }, "SyncConsumer");
-    this.classList.add('button');
+
+    this._consumer = db.numChangesSinceLastSync.consume((numChanges) => {
+      this.innerHTML = "";
+      this.appendChild(icon);
+      this.appendChild(makeTag("span", numChanges + ""));
+      if (numChanges === 0) {
+        this.setAttribute("disabled", "true");
+      } else {
+        this.removeAttribute("disabled");
+      }
+    }, "SyncConsumer");
   }
   connectedCallback() {
     this._consumer.turn_on();
@@ -204,15 +230,17 @@ class SyncButton extends HTMLElement {
     this._consumer.turn_off();
   }
 }
-customElements.define('sync-button', SyncButton);
+customElements.define("sync-button", SyncButton);
 
 class HomeView extends HTMLElement implements TopBarProvider {
   _topBarItems: Flow<Array<HTMLElement>>;
   _db: FlashCardDb;
+  _ctx: Context;
   constructor(db: FlashCardDb, ctx: Context) {
     super();
 
     this._db = db;
+    this._ctx = ctx;
 
     const reviewDeck = (deck: Deck) => {
       let viewModel = new ReviewerViewModelImpl(deck, db, ctx, () => {
@@ -237,7 +265,7 @@ class HomeView extends HTMLElement implements TopBarProvider {
     }
 
     if (!SHOW_DEBUG_BUTTONS) {
-      this._topBarItems = NavigationView.above(this).stackFlow.map(() => <Array<HTMLElement>>[]);
+      this._topBarItems = this._ctx.create_state_flow(<Array<HTMLElement>>[], "TopBarButtons");
       return this._topBarItems;
     }
     const resetButton = makeButton("Reset");
@@ -257,7 +285,6 @@ class HomeView extends HTMLElement implements TopBarProvider {
 }
 customElements.define("home-ui", HomeView);
 
-
 function main(db: FlashCardDb, ctx: Context) {
   console.log("Creating main view");
 
@@ -266,35 +293,59 @@ function main(db: FlashCardDb, ctx: Context) {
     ctx.print_graph();
     db.getAll("decks")
       .then((decks: Array<Deck>) => {
-        console.log('decks');
-        decks.forEach(val => console.log(val));
+        console.log("decks");
+        decks.forEach((val) => console.log(val));
       })
       .then(() => db.getAll("cards"))
       .then((cards: Array<Card>) => {
-        console.log('cards');
-        cards.forEach(val => console.log(val));
+        console.log("cards");
+        cards.forEach((val) => console.log(val));
       })
       .then(() => db.getAll("reviews"))
       .then((reviews: Array<Card>) => {
-        console.log('reviews');
-        reviews.forEach(val => console.log(val));
+        console.log("reviews");
+        reviews.forEach((val) => console.log(val));
       })
       .then(() => db.getAll("learn_state"))
       .then((learnStates: Array<Card>) => {
-        console.log('learnStates');
-        learnStates.forEach(val => console.log(val));
+        console.log("learnStates");
+        learnStates.forEach((val) => console.log(val));
       });
   });
 
-  const buttons: Array<HTMLElement> = [new SyncButton(db, ctx)];
+  const settingsButton = new SettingsButton(db, ctx);
+  const buttons = [settingsButton, new SyncButton(db, ctx)];
   if (SHOW_DEBUG_BUTTONS) {
     buttons.push(debugButton);
   }
+  const buttonsFlow = ctx.create_state_flow([], "TopBarButtons");
 
-  const navigationView = new NavigationView(ctx, new HomeView(db, ctx), buttons);
+  const navigationView = new NavigationView(
+    ctx,
+    new HomeView(db, ctx),
+    buttonsFlow
+  );
+  navigationView.addEventListener("stack-change", (e: CustomEvent) => {
+    console.log(e.detail);
+    buttonsFlow.value = buttons.filter((button) => {
+      if (button === debugButton) {
+        return SHOW_DEBUG_BUTTONS;
+      }
+      if (button === settingsButton) {
+        const settingsUiCurrentlyInStack =
+        e.detail.stack.filter(
+          (element: HTMLElement) => element.tagName === "SETTINGS-UI"
+        ).length > 0;
+        return !settingsUiCurrentlyInStack;
+      }
+      return true;
+    });
+  });
   document.body.appendChild(navigationView);
 }
 
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register(new URL('./serviceworker.js', import.meta.url));
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register(
+    new URL("./serviceworker.js", import.meta.url)
+  );
 }

@@ -21,7 +21,7 @@ export class NavigationView extends HTMLElement {
   _topbar: HTMLDivElement;
   _content: HTMLDivElement;
   _ctx: Context;
-  constructor(ctx: Context, rootView: HTMLElement, topbarButtons: Array<HTMLElement>) {
+  constructor(ctx: Context, rootView: HTMLElement, topbarButtons: Flow<Array<HTMLElement>>) {
     super();
     this._ctx = ctx;
     this._stackFlow = ctx.create_state_flow([]);
@@ -62,22 +62,25 @@ export class NavigationView extends HTMLElement {
     backButton.addEventListener('click', () => {
       this.pop();
     })
-    this._baseTopBarItems = ctx.create_state_flow((topbarButtons));
+    this._baseTopBarItems = topbarButtons;
+
+    const backButtonFlow = ctx.create_state_flow(<Array<HTMLElement>>[], 'BackButton');
     this.addEventListener('stack-change', () => {
       if (this.length > 1) {
-        if (!this._baseTopBarItems.value.includes(backButton)) {
-          this._baseTopBarItems.value = [backButton].concat(this._baseTopBarItems.value);
-        }
+        backButtonFlow.value = [backButton];
       } else {
-        if (this._baseTopBarItems.value.includes(backButton)) {
-          this._baseTopBarItems.value = this._baseTopBarItems.value.filter(element => element !== backButton);
-        }
+        backButtonFlow.value = [];
       }
     });
 
+    this._topBarProviders.push(backButtonFlow);
     this._topBarProviders.push(this._baseTopBarItems);
-    this.push(rootView);
-    this._updateTopBar();
+
+    // Dispatch this so the provider of topBarButtons can subscribe to us
+    // before the first stack-change event is dispatched.
+    Promise.resolve().then(() => {
+      this.push(rootView);
+    });
   }
   _updateTopBar() {
     if (this._topbarConsumer) {
@@ -113,6 +116,7 @@ export class NavigationView extends HTMLElement {
       detail: {
         oldTopView: oldTopView,
         newTopView: view,
+        stack: Array.from(this._content.children),
       }
     }));
     this._stackFlow.value = <Array<HTMLElement>>Array.from(this._content.children);
@@ -133,6 +137,7 @@ export class NavigationView extends HTMLElement {
       detail: {
         newTopView: this._content.lastElementChild,
         oldTopView: removedChild,
+        stack: Array.from(this._content.children),
       }
     }));
     this._stackFlow.value = <Array<HTMLElement>>Array.from(this._content.children);
