@@ -33,7 +33,7 @@ export function makeImage(src: URL, style: any = {}): HTMLImageElement {
   return element;
 }
 
-export function makeButton(content: (string | HTMLElement)): HTMLElement {
+export function makeButton(content: (string | HTMLElement), style: any = {}): HTMLElement {
   const button = document.createElement('div');
   button.classList.add('button');
   button.setAttribute('tabIndex', '0');
@@ -41,6 +41,9 @@ export function makeButton(content: (string | HTMLElement)): HTMLElement {
     button.innerText = content;
   } else {
     button.appendChild(content);
+  }
+  for (let k in style) {
+    button.style[k] = style[k];
   }
   // Listen for disable attribute changes
   const observer = new MutationObserver((mutationsList, observer) => {

@@ -250,8 +250,7 @@ class HomeView extends HTMLElement implements TopBarProvider {
       NavigationView.above(this).push(ui);
     };
     const browseDeck = (deck: Deck) => {
-      let viewModel = new BrowseViewModel(deck, db, ctx);
-      const ui = new BrowseUi(ctx, db, deck, viewModel);
+      const ui = new BrowseUi(ctx, db, deck);
       NavigationView.above(this).push(ui);
     };
     const deckPanel = new DeckPanel(db, reviewDeck, browseDeck);

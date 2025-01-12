@@ -71,6 +71,7 @@ interface FlashCardDb_Flows {
   numCardsOverdueInDeck(deck_id: string): Flow<number>;
   numCardsInDeck(deck_id: string): Flow<number>;
   reviewsForCard(card_id: string): Flow<Array<Review>>;
+  card(card_id: string): Flow<Card>;
 }
 
 interface FlashCardDb_Actions {
@@ -156,25 +157,39 @@ class CardsInDeckMaintainer {
     this._flows = new Map();
     this._countFlows = new Map();
     db.addEventListener('insert', (event: CustomEvent) => {
-      if (event.detail.table === 'cards') {
-        const card = <Card>event.detail.data;
-        if (this._flows.has(card.deck_id)) {
-          const flow = this._flows.get(card.deck_id);
-          const arr = flow.value.concat([card]);
-          arr.sort((a, b) => a.date_created - b.date_created);
-          flow.value = arr;
-
-          this._countFlows.get(card.deck_id).value = arr.length;
-        }
+      if (event.detail.table !== 'cards') {
+        return;
+      }
+      const card = <Card>event.detail.data;
+      if (this._flows.has(card.deck_id)) {
+        const flow = this._flows.get(card.deck_id);
+        const arr = flow.value.concat([card]);
+        sort_cards(arr);
+        flow.value = arr;
+        this._countFlows.get(card.deck_id).value = arr.length;
       }
     });
     db.addEventListener('drop', (event: CustomEvent) => {
-      if (event.detail.table === 'cards') {
-        for (let k of this._flows.keys()) {
-          this._flows.get(k).value = [];
-          this._countFlows.get(k).value = 0;
-        }
+      if (event.detail.table !== 'cards') {
+        return;
       }
+      for (let k of this._flows.keys()) {
+        this._flows.get(k).value = [];
+        this._countFlows.get(k).value = 0;
+      }
+    });
+    db.addEventListener('update', (event: CustomEvent) => {
+      if (event.detail.table !== 'cards') {
+        return;
+      }
+      const card = <Card>event.detail.data;
+      const flow = this._flows.get(card.deck_id);
+      const arr = flow.value.filter(c => c.card_id !== card.card_id).concat([card]);
+      sort_cards(arr);
+      if (arr.length !== flow.value.length) {
+        throw new Error("Updating a card should not change the number of cards in a deck");
+      }
+      flow.value = arr;
     });
   }
   deck(deck_id: string): Flow<Array<Card>> {
@@ -188,7 +203,7 @@ class CardsInDeckMaintainer {
   _fromScratch(deck_id: string): void {
     this._db.get_all_cards_in_deck(deck_id).then((cards: Array<Card>) => {
       // We want the most recently created cards at the top of the list.
-      cards.sort((a, b) => b.date_created - a.date_created);
+      sort_cards(cards);
       this._flows.get(deck_id).value = cards;
       this._countFlows.get(deck_id).value = cards.length;
     });
@@ -201,6 +216,14 @@ class CardsInDeckMaintainer {
   }
 }
 
+function sort_cards(cards: Array<Card>) {
+  cards.sort((a, b) => (a.date_created - b.date_created) || (a.card_id.localeCompare(b.card_id)));
+}
+
+function sort_decks(decks: Array<Deck>) {
+  decks.sort((a, b) => (a.date_created - b.date_created) || (a.deck_id.localeCompare(b.deck_id)));
+}
+
 class DeckMaintainer {
   _decks: StateFlow<Array<Deck>>;
   constructor(db: FlashCardDb, ctx: Context) {
@@ -208,7 +231,7 @@ class DeckMaintainer {
     db.addEventListener('insert', (event: CustomEvent) => {
       if (event.detail.table === 'decks') {
         const decks = this._decks.value.concat(<Deck>event.detail.data);
-        decks.sort((a, b) => a.date_created - b.date_created);
+        sort_decks(decks);
         this._decks.value = decks;
       }
     });
@@ -218,7 +241,7 @@ class DeckMaintainer {
       }
     });
     db.getAll<Deck>("decks").then((decks: Array<Deck>) => {
-      decks.sort((a, b) => a.date_created - b.date_created);
+      sort_decks(decks);
       this._decks.value = decks;
       return decks;
     });
@@ -285,6 +308,49 @@ class ReviewsForCardsMaintainer {
         }
       }
     };
+    return flow;
+  }
+}
+
+class CardMaintainer {
+  _db: FlashCardDb;
+  _ctx: Context;
+  _flows: Map<string, WeakRef<StateFlow<Card | undefined>>>;
+  constructor(db: FlashCardDb, ctx: Context) {
+    this._db = db;
+    this._ctx = ctx;
+    this._flows = new Map();
+    const update = (event: CustomEvent) => {
+      if (event.detail.table !== 'cards') {
+        return;
+      }
+      const card: Card = <Card>event.detail.data;
+      if (this._flows.has(card.card_id)) {
+        const flow = this._flows.get(card.card_id).deref()
+        if (flow) {
+          flow.value = card;
+        } else {
+          this._flows.delete(card.card_id);
+        }
+      };
+    }
+    db.addEventListener('insert', update);
+    db.addEventListener('update', update);
+  }
+  flowPromise(card_id: string): Promise<Flow<Card>> {
+    return this._db.get_card(card_id).then((card: Card) => {
+      return <Flow<Card>>this.flow(card_id, card);
+    });
+  }
+  flow(card_id: string, initialValue?: Card): Flow<Card | undefined> {
+    if (this._flows.has(card_id) && this._flows.get(card_id).deref()) {
+      return this._flows.get(card_id).deref();
+    }
+    const flow = this._ctx.create_state_flow(initialValue, `CardMaintainer-${card_id}`);
+    this._flows.set(card_id, new WeakRef(flow));
+    this._db.get_card(card_id).then((card: Card) => {
+      flow.value = card;
+    });
     return flow;
   }
 }
@@ -385,6 +451,7 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
   _syncLocker: Locker<void>;
   _isOffline: StateFlow<boolean>;
   _decksMaintainer: DeckMaintainer;
+  _cardMaintainer: CardMaintainer;
   constructor(db: IDBDatabase, ctx: Context) {
     super();
     this.db = db;
@@ -398,6 +465,7 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
     this._learnStateForCardsMaintainer = new LearnStateForCardsMaintainer(this, ctx);
     this._syncLocker = new Locker(() => this._sync());
     this._isOffline = ctx.create_state_flow(true, "db.isOffline");
+    this._cardMaintainer = new CardMaintainer(this, ctx);
 
     this.addEventListener('insert', (event: CustomEvent) => {
       if (event.detail.table !== 'learn_state') {
@@ -408,6 +476,12 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
       this._numChangesSinceLastSync.value = operations.length;
     });
     this._initialize_last_sync_time().then(() => this.sync());
+  }
+  card(card_id: string): Flow<Card | undefined> {
+    return this._cardMaintainer.flow(card_id);
+  }
+  cardFlowPromise(card_id: string): Promise<Flow<Card>> {
+    return this._cardMaintainer.flowPromise(card_id);
   }
   _initialize_last_sync_time(): Promise<void> {
     return Promise.all([
@@ -460,9 +534,22 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
   get numChangesSinceLastSync(): Flow<number> {
     return this._numChangesSinceLastSync;
   }
+  get_deck(deck_id: string): Promise<Deck> {
+    return new Promise((resolve, reject) => {
+      const transaction = this.db.transaction("decks", "readonly");
+      const objectStore = transaction.objectStore("decks");
+      const request = objectStore.get(deck_id);
+      request.onsuccess = (event) => {
+        resolve((<IDBRequest>event.target).result);
+      };
+      request.onerror = (event) => {
+        reject(event);
+      };
+    });
+  }
   get_decks(): Promise<Array<Deck>> {
     return this.getAll<Deck>("decks").then((decks: Array<Deck>) => {
-      decks.sort((a, b) => a.date_created - b.date_created);
+      sort_decks(decks);
       return decks;
     });
   }
@@ -484,7 +571,8 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
     objectStoreName: string,
     obj: T,
     transaction: IDBTransaction | undefined = undefined,
-    suppressEvent: boolean = false
+    suppressEvent: boolean = false,
+    isUpdate: boolean = false,
   ): Promise<T> {
     transaction =
       transaction || this.db.transaction([objectStoreName], "readwrite");
@@ -506,7 +594,8 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
         }
       }
       if (!suppressEvent) {
-        this.dispatchEvent(new CustomEvent("insert", {detail: {table: objectStoreName, data: obj}}));
+        const eventName = isUpdate ? "update" : "insert";
+        this.dispatchEvent(new CustomEvent(eventName, {detail: {table: objectStoreName, data: obj}}));
       }
       return obj;
     });
@@ -518,6 +607,10 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
       date_created: get_now(),
       remote_date: kUnknownRemoteDate,
     });
+  }
+  update_card(card: Card, front: string, back: string): Promise<Card> {
+    card = Object.assign({}, card, {front: front, back: back});
+    return this._insert<Card>("cards", card, undefined, false, true);
   }
   add_card(deck_id: string, front: string, back: string): Promise<Card> {
     const txn = this.db.transaction(
