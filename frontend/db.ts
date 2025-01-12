@@ -472,10 +472,15 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
         this._numChangesSinceLastSync.value++;
       }
     });
+    this.addEventListener('update', (event: CustomEvent) => {
+      if (event.detail.table !== 'learn_state') {
+        this._numChangesSinceLastSync.value++;
+      }
+    });
     this.get_unsynced_operations().then((operations: Array<Operation>) => {
       this._numChangesSinceLastSync.value = operations.length;
     });
-    this._initialize_last_sync_time().then(() => this.sync());
+    this._initialize_last_sync_time();
   }
   card(card_id: string): Flow<Card | undefined> {
     return this._cardMaintainer.flow(card_id);
@@ -610,6 +615,7 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
   }
   update_card(card: Card, front: string, back: string): Promise<Card> {
     card = Object.assign({}, card, {front: front, back: back});
+    card.remote_date = kUnknownRemoteDate;  // Indicates the server doesn't know about this change.
     return this._insert<Card>("cards", card, undefined, false, true);
   }
   add_card(deck_id: string, front: string, back: string): Promise<Card> {
@@ -874,7 +880,7 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
     return new Promise((resolve, reject) => {
       const transaction = this.db.transaction(tableName, "readonly");
       const objectStore = transaction.objectStore(tableName);
-      const keyRange = IDBKeyRange.only(0);
+      const keyRange = IDBKeyRange.only(kUnknownRemoteDate);
       const request = objectStore.index("index_remote_date").getAll(keyRange);
       request.onsuccess = (event) => {
         const result = (<IDBRequest>event.target).result;
@@ -914,6 +920,7 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
       return response.json();
     })
     .then((response: SyncResponse) => {
+      console.log('sync response', response);
       const remoteOperations: Array<Operation> = response.remote;
       const localOperations: Array<Operation> = response.local;
 
@@ -921,16 +928,9 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
         ["decks", "cards", "reviews", "learn_state"],
         "readwrite"
       );
-      const insertionPromises: Array<any> = [];
+      const insertionPromises: Array<Promise<any>> = [];
       const newCardsByDeck = new Map<string, Array<Card>>();
       const affectedCards = new Map<string, string>();  // Map from card_id to deck_id.
-
-      // Just need to update remote_date for these rows.
-      for (let operation of localOperations) {
-        // We suppressEvent since we don't want (e.g.) increment counters, since these rows already exist.
-        // Realistically, nobody listening for events cares if remote_date is updated.
-        insertionPromises.push(this._insert(operation.table, operation.data, txn, /* suppressEvent= */ true));
-      }
 
       // Updating these are a bit more involved since we need to recompute learn state.
       for (let operation of remoteOperations) {
@@ -954,6 +954,20 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
           throw new Error("Unknown operation: " + operation.type);
         }
       }
+
+      // We need to re-insert all of these to update their remote_data.
+      // We also need to re-insert all updates, since they may have been updated by the server,
+      // and our updates should "win" (since they're guaranteed to be the most recent updates
+      // that the server knows about).
+      localOperations.sort((a, b) => a.data.date_created - b.data.date_created);
+      for (let operation of localOperations) {
+        // We suppressEvent since we don't want (e.g.) increment counters, since these rows already exist.
+        // Realistically, nobody listening for events cares if remote_date is updated.
+        insertionPromises.push(this._insert(operation.table, operation.data, txn, /* suppressEvent= */ true));
+      }
+
+      // TODO: if there are any update operations from the server, various listeners will be incorrect, since
+      // they will be treated as insertions.
 
       // Slow. An alternative is to delete affected learn states and only recompute them
       // when they are needed, but that's possibly worse, since the user will definitely

@@ -131,7 +131,7 @@ def reset():
       'cards': [],
       'name': f'Deck {i}'
     }
-    for j in range(10):
+    for _ in range(10 if i == 0 else 3):
       deck['cards'].append({
         'card_id': uuid.uuid4().hex,
         'deck_id': deck['deck_id'],

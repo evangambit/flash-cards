@@ -6,7 +6,7 @@ import { TableView } from "./collection";
 import { makeButton, makeImage, makeTag } from "./checkbox";
 import { NavigationView, TopBarProvider } from "./navigation";
 
-const USE_DEBUG_DATA = false;
+const USE_DEBUG_DATA = window.location.search.includes('debugdata=1');
 const SHOW_DEBUG_BUTTONS = true;
 
 if (USE_DEBUG_DATA) {
@@ -211,16 +211,13 @@ class SyncButton extends HTMLElement {
     const icon = makeImage(new URL("./assets/sync.png", import.meta.url), {
       height: "100%",
     });
+    this.appendChild(icon);
+
+    const countSpan = makeTag("span", "0");
+    this.appendChild(countSpan);
 
     this._consumer = db.numChangesSinceLastSync.consume((numChanges) => {
-      this.innerHTML = "";
-      this.appendChild(icon);
-      this.appendChild(makeTag("span", numChanges + ""));
-      if (numChanges === 0) {
-        this.setAttribute("disabled", "true");
-      } else {
-        this.removeAttribute("disabled");
-      }
+      countSpan.innerText = numChanges.toString();
     }, "SyncConsumer");
   }
   connectedCallback() {
