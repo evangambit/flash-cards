@@ -1,7 +1,7 @@
 import {Context, Flow, Consumer, StateFlow} from "./flow";
 import {FlashCardDb, Deck, Card, Review, ReviewResponse, LearnState} from './db';
 import {TableView} from './collection';
-import { NavigationView, TopBarProvider } from "./navigation";
+import { NavigationController, TopBarProvider } from "./navigation";
 import { makeButton, makeTag, makeImage } from "./checkbox";
 
 interface BrowseUiState {
@@ -91,7 +91,7 @@ class CardCell extends HTMLElement {
     this._actionsDiv.style.flexDirection = 'column';
     const editButton = makeButton('Edit');
     editButton.addEventListener('click', () => {
-      NavigationView.above(this).present(new CardMakerUi(ctx, db, deck, this._lastCard));
+      NavigationController.navigation.present(new CardMakerUi(ctx, db, deck, this._lastCard));
     });
     const deleteButton = makeButton('Delete');
     deleteButton.addEventListener('click', () => {
@@ -185,7 +185,7 @@ class CardMakerUi extends HTMLElement {
 
     const cancelButton = makeButton('Cancel');
     cancelButton.addEventListener('click', () => {
-      NavigationView.above(this).dismiss();
+      NavigationController.navigation.dismiss();
     });
     buttonPanel.appendChild(cancelButton);
 
@@ -200,11 +200,11 @@ class CardMakerUi extends HTMLElement {
       }
       if (isEditting) {
         db.update_card(card, frontElement.value, backElement.value).then(() => {
-          NavigationView.above(this).dismiss();
+          NavigationController.navigation.dismiss();
         });
       } else {
         db.add_card(deck.deck_id, frontElement.value, backElement.value).then(() => {
-          NavigationView.above(this).dismiss();
+          NavigationController.navigation.dismiss();
         });
       }
     });
@@ -269,7 +269,7 @@ export class BrowseUi extends HTMLElement implements TopBarProvider {
       'height': '100%',
     }));
     newCardButton.addEventListener('click', () => {
-      NavigationView.above(this).present(new CardMakerUi(ctx, db, deck));
+      NavigationController.navigation.present(new CardMakerUi(ctx, db, deck));
     });
     this._topBarItems = ctx.create_state_flow([newCardButton]);
   }

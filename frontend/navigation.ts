@@ -13,7 +13,7 @@ export interface TopBarProvider {
   topBarItems: Flow<Array<HTMLElement>>;
 }
 
-export class NavigationView extends HTMLElement {
+export class NavigationController extends EventTarget {
   _baseTopBarItems: StateFlow<Array<HTMLElement>>;
   _topBarProviders: Array<Flow<Array<HTMLElement>>>;
   _topbarConsumer: Consumer<Array<HTMLElement>>;
@@ -21,22 +21,22 @@ export class NavigationView extends HTMLElement {
   _topbar: HTMLDivElement;
   _content: HTMLDivElement;
   _ctx: Context;
-  constructor(ctx: Context, rootView: HTMLElement, topbarButtons: Flow<Array<HTMLElement>>) {
+  constructor(ctx: Context, topbarButtons: Flow<Array<HTMLElement>>) {
     super();
     this._ctx = ctx;
     this._stackFlow = ctx.create_state_flow([]);
     this._topbar = <HTMLDivElement>document.createElement('div');
     this._content = <HTMLDivElement>document.createElement('div');
-    this.appendChild(this._topbar);
-    this.appendChild(this._content);
+    document.body.appendChild(this._topbar);
+    document.body.appendChild(this._content);
     this._topBarProviders = [];
-    this.style.display = "flex";
-    this.style.flexDirection = "column";
-    this.style.position = "relative";
-    this.style.left = "0";
-    this.style.top = "0";
-    this.style.width = "100%";
-    this.style.height = "100%";
+    document.body.style.display = "flex";
+    document.body.style.flexDirection = "column";
+    document.body.style.position = "relative";
+    document.body.style.left = "0";
+    document.body.style.top = "0";
+    document.body.style.width = "100%";
+    document.body.style.height = "100%";
 
     this._topbar.style.display = 'flex';
     this._topbar.style.flexDirection = 'row';
@@ -53,7 +53,6 @@ export class NavigationView extends HTMLElement {
     this._content.style.display = 'flex';
     this._content.style.width = "100%";
     this._content.style.maxWidth = "30em";
-    this._content.style.height = "100%";
     this._content.style.transform = "translate(-50%, 0)";
 
     const backButton = makeButton(makeImage(new URL('./assets/back.png', import.meta.url), {
@@ -75,13 +74,6 @@ export class NavigationView extends HTMLElement {
 
     this._topBarProviders.push(backButtonFlow);
     this._topBarProviders.push(this._baseTopBarItems);
-
-    // Dispatch this so the provider of topBarButtons can subscribe to us
-    // before the first stack-change event is dispatched.
-    Promise.resolve().then(() => {
-      this._updateTopBar();
-      this.push(rootView);
-    });
   }
   _updateTopBar() {
     if (this._topbarConsumer) {
@@ -95,9 +87,7 @@ export class NavigationView extends HTMLElement {
         this._topbar.appendChild(element);
       }
     });
-    if (this.isConnected) {
-      this._topbarConsumer.turn_on();
-    }
+    this._topbarConsumer.turn_on();
   }
   get length() {
     return this._content.children.length;
@@ -164,33 +154,13 @@ export class NavigationView extends HTMLElement {
     background.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
     background.style.zIndex = "100";
     background.appendChild(view);
-    this.appendChild(background);
+    document.body.appendChild(background);
   }
   dismiss() {
-    if (this.lastElementChild === this._content) {
+    if (document.body.lastElementChild === this._content) {
       throw Error("No view to dismiss");
     }
-    this.removeChild(this.lastElementChild);
+    document.body.removeChild(document.body.lastElementChild);
   }
-  static above(view: HTMLElement): NavigationView {
-    let parent = view.parentElement;
-    while (parent && !(parent instanceof NavigationView)) {
-      parent = parent.parentElement;
-    }
-    if (!parent) {
-      throw Error("No NavigationView found");
-    }
-    return <NavigationView>parent;
-  }
-  connectedCallback() {
-    if (this._topbarConsumer) {
-      this._topbarConsumer.turn_on();
-    }
-  }
-  disconnectedCallback() {
-    if (this._topbarConsumer) {
-      this._topbarConsumer.turn_off();
-    }
-  }
+  static navigation: NavigationController;
 }
-customElements.define("navigation-view", NavigationView);

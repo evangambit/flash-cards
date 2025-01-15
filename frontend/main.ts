@@ -1,10 +1,10 @@
 import { Context, Consumer, Flow } from "./flow";
 import { ReviewerUi, ReviewerViewModelImpl } from "./reviewer";
 import { FlashCardDb, Deck, Card } from "./db";
-import { BrowseViewModel, BrowseUi } from "./browse";
+import { BrowseUi } from "./browse";
 import { TableView } from "./collection";
 import { makeButton, makeImage, makeTag } from "./checkbox";
-import { NavigationView, TopBarProvider } from "./navigation";
+import { NavigationController, TopBarProvider } from "./navigation";
 
 const USE_DEBUG_DATA = window.location.search.includes('debugdata=1');
 const SHOW_DEBUG_BUTTONS = true;
@@ -188,7 +188,7 @@ class SettingsButton extends HTMLElement {
     this.classList.add("button");
     this.innerText = "S";
     this.addEventListener("click", () => {
-      NavigationView.above(this).push(new SettingsUi(db, ctx));
+      NavigationController.navigation.push(new SettingsUi(db, ctx));
     });
   }
 }
@@ -241,14 +241,14 @@ class HomeView extends HTMLElement implements TopBarProvider {
 
     const reviewDeck = (deck: Deck) => {
       let viewModel = new ReviewerViewModelImpl(deck, db, ctx, () => {
-        NavigationView.above(ui).pop();
+        NavigationController.navigation.pop();
       });
       const ui = new ReviewerUi(viewModel);
-      NavigationView.above(this).push(ui);
+      NavigationController.navigation.push(ui);
     };
     const browseDeck = (deck: Deck) => {
       const ui = new BrowseUi(ctx, db, deck);
-      NavigationView.above(this).push(ui);
+      NavigationController.navigation.push(ui);
     };
     const deckPanel = new DeckPanel(db, reviewDeck, browseDeck);
     this.appendChild(deckPanel);
@@ -269,7 +269,7 @@ class HomeView extends HTMLElement implements TopBarProvider {
       this._db.reset();
     });
 
-    this._topBarItems = NavigationView.above(this).stackFlow.map((stack) => {
+    this._topBarItems = NavigationController.navigation.stackFlow.map((stack) => {
       if (stack[stack.length - 1] === this) {
         return [resetButton];
       } else {
@@ -316,12 +316,11 @@ function main(db: FlashCardDb, ctx: Context) {
   }
   const buttonsFlow = ctx.create_state_flow([], "TopBarButtons");
 
-  const navigationView = new NavigationView(
+  NavigationController.navigation = new NavigationController(
     ctx,
-    new HomeView(db, ctx),
     buttonsFlow
   );
-  navigationView.addEventListener("stack-change", (e: CustomEvent) => {
+  NavigationController.navigation.addEventListener("stack-change", (e: CustomEvent) => {
     console.log(e.detail);
     buttonsFlow.value = buttons.filter((button) => {
       if (button === debugButton) {
@@ -337,7 +336,7 @@ function main(db: FlashCardDb, ctx: Context) {
       return true;
     });
   });
-  document.body.appendChild(navigationView);
+  NavigationController.navigation.push(new HomeView(db, ctx));
 }
 
 if ("serviceWorker" in navigator) {
