@@ -198,9 +198,9 @@ class CardsInDeckMaintainer {
     }
     this._flows.set(deck_id, this._ctx.create_state_flow([]));
     this._countFlows.set(deck_id, this._ctx.create_state_flow(0));
-    this._fromScratch(deck_id);
+    this.fromScratch(deck_id);
   }
-  _fromScratch(deck_id: string): void {
+  fromScratch(deck_id: string): void {
     this._db.get_all_cards_in_deck(deck_id).then((cards: Array<Card>) => {
       // We want the most recently created cards at the top of the list.
       sort_cards(cards);
@@ -931,6 +931,7 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
       const insertionPromises: Array<Promise<any>> = [];
       const newCardsByDeck = new Map<string, Array<Card>>();
       const affectedCards = new Map<string, string>();  // Map from card_id to deck_id.
+      const decksWithNewCards = new Set<string>();
 
       // Updating these are a bit more involved since we need to recompute learn state.
       for (let operation of remoteOperations) {
@@ -942,6 +943,7 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
               newCardsByDeck.set(card.deck_id, []);
             }
             newCardsByDeck.get(card.deck_id).push(card);
+            decksWithNewCards.add(card.deck_id);
           }
 
           const cardId: string | undefined = (<any>operation.data).card_id;
@@ -966,8 +968,11 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
         insertionPromises.push(this._insert(operation.table, operation.data, txn, /* suppressEvent= */ true));
       }
 
-      // TODO: if there are any update operations from the server, various listeners will be incorrect, since
-      // they will be treated as insertions.
+      // If there are any update operations from the server, various listeners will be incorrect, since
+      // they will be treated as insertions. In practice, only cards get updated, so:
+      for (let deck_id of decksWithNewCards) {
+        this._cardsInDecks.fromScratch(deck_id);
+      }
 
       // Slow. An alternative is to delete affected learn states and only recompute them
       // when they are needed, but that's possibly worse, since the user will definitely

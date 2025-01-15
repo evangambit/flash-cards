@@ -94,3 +94,12 @@ Note: Since lambda relies on knowing the last time a card was seen, repetition i
 $ npx parcel build frontend/index.html --no-cache --no-content-hash
 $ python server.py
 ```
+
+## Real server:
+
+```
+cd /home/ec2-user/flash-cards
+sudo ./.venv/bin/python -m gunicorn server:app -b '0.0.0.0:443' \
+--certfile /etc/letsencrypt/live/flashcards.morganredding.com/cert.pem \
+--keyfile /etc/letsencrypt/live/flashcards.morganredding.com/privkey.pem
+```
