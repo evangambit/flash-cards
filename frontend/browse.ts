@@ -95,6 +95,7 @@ class CardCell extends HTMLElement {
     });
     const deleteButton = makeButton('Delete');
     deleteButton.addEventListener('click', () => {
+      // TODO.
     });
     this._actionsDiv.appendChild(editButton);
     this._actionsDiv.appendChild(deleteButton);
@@ -227,7 +228,7 @@ class CardMakerUi extends HTMLElement {
 customElements.define('card-maker-ui', CardMakerUi);
 
 class BrowseHeaderUi extends HTMLElement {
-  constructor(ctx: Context, db: FlashCardDb) {
+  constructor(ctx: Context, db: FlashCardDb, search_fn: (query: string, order: string) => void) {
     super();
     this.style.display = 'flex';
     this.style.flexDirection = 'row';
@@ -235,8 +236,20 @@ class BrowseHeaderUi extends HTMLElement {
     const searchBar = document.createElement('input');
     searchBar.style.flex = '1';
     searchBar.setAttribute('placeholder', 'Search');
+    searchBar.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        search_fn(searchBar.value, orderDropdown.value);
+      }
+    });
     this.appendChild(searchBar);
-    const orderDropdown = makeButton('O');
+    const orderDropdown = <HTMLSelectElement>makeTag("select");
+    orderDropdown.innerHTML = `
+    <option>Oldest</option>
+    <option>Newest</option>
+    `;
+    orderDropdown.addEventListener('change', () => {
+      search_fn(searchBar.value, orderDropdown.value);
+    });
     this.appendChild(orderDropdown);
   }
 }
@@ -253,7 +266,9 @@ export class BrowseUi extends HTMLElement implements TopBarProvider {
     this.style.overflow = 'hidden';
     this.style.overflowY = 'auto';
     this._landscape = ctx.create_state_flow(false, 'landscape');
-    this.appendChild(new BrowseHeaderUi(ctx, db));
+    this.appendChild(new BrowseHeaderUi(ctx, db, (query: string, order: string) => {
+      // TODO
+    }));
     let tableView = new TableView({
       viewForId: (card_id: string) => {
         return new CardCell(ctx, db, card_id, deck);
