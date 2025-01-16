@@ -7,7 +7,7 @@ import { makeButton, makeImage, makeTag } from "./checkbox";
 import { NavigationController, TopBarProvider } from "./navigation";
 
 const USE_DEBUG_DATA = window.location.search.includes('debugdata=1');
-const SHOW_DEBUG_BUTTONS = true;
+const SHOW_DEBUG_BUTTONS = false;
 
 if (USE_DEBUG_DATA) {
   window.indexedDB.deleteDatabase("flashcards");
@@ -114,7 +114,6 @@ class DeckCell extends HTMLElement {
         this.style.margin = "0.5em";
 
         const label = document.createElement("div");
-        label.style.whiteSpace = "nowrap";
         label.innerText = `${deck.deck_name} (${numCardsInDeck} cards)`;
         this.appendChild(label);
 

@@ -112,8 +112,6 @@ bú cháng
 infrequently
 bú yào
 don't want to
-zhè bú shi
-this is not
 bù kè qì
 you're welcome
 shuō
@@ -124,5 +122,71 @@ xué xí
 studying
 tóng xué
 classmate
+xǐ huan
+like
+rìběn
+Japan
+hànbǎobāo
+hamburger
+qiánbāo
+wallet
+cài
+food
+yīnyuè
+music
+shùxué
+math
+kè
+class
+shàngwǎng
+going online
+chàng gē
+sing
+pǎobù
+running
+bù
+not
+bà ba
+dad
+lǎo po
+wife
+jiā
+add
+tā
+he/her
+tā de
+his/her
+māma
+mom
+lǎo gōng
+husband
+gōng yuán
+park
+gōng yù
+apartment
+gōng jiāo chē
+bus
+lǚ xíng
+traveling
+xíng li
+luggaged
+ér zi
+son
+nǚ ér
+daugher
+fàng zi
+house
+kù zi
+pants
+tā
+he
+yě
+also
+yě shì
+is also
+zhēn de ma
+really?
+wǒ de
+my
 
-Section 1, Unit 4
+Section 1, Unit 6

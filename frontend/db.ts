@@ -1,10 +1,8 @@
 import { Context, Flow, StateFlow } from "./flow";
 
 export enum ReviewResponse {
-  perfect = 5,
-  correct_after_hesitation = 4,
-  correct_with_serious_difficulty = 3,
-  incorrect_but_easy_to_recall = 2,
+  perfect = 3,
+  correct_but_difficult = 2,
   incorrect = 1,
   complete_blackout = 0,
 }
@@ -699,9 +697,12 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
    * @param response The user's response to the card.
    */
   _update_learn_state(learnState: LearnState, response: ReviewResponse): void {
-    learnState.easiness_factor += 0.1 - (5 - response) * (0.08 + (5 - response) * 0.02);
+    const a = -0.1 / 3;
+    const b = 0.8 / 3;
+    const c = -0.4;
+    learnState.easiness_factor += a * response * response + b * response + c;
     learnState.easiness_factor = Math.max(1.3, learnState.easiness_factor);
-    if (response <= ReviewResponse.incorrect_but_easy_to_recall) {
+    if (response <= ReviewResponse.incorrect) {
       learnState.review_interval = kInitialReviewInterval;
     } else {
       learnState.review_interval *= learnState.easiness_factor;
@@ -760,7 +761,7 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
         this._update_learn_state(learnState, review.response);
       }
 
-      if (reviews.length > 0 && reviews[reviews.length - 1].response > ReviewResponse.incorrect_but_easy_to_recall) {
+      if (reviews.length > 0 && reviews[reviews.length - 1].response > ReviewResponse.incorrect) {
         learnState.scheduled_time = get_now() + learnState.review_interval;
       } else {
         learnState.scheduled_time = get_now() - 1;

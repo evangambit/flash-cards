@@ -42,7 +42,7 @@ class ExpandedCardUi extends HTMLElement {
       for (const review of reviews.slice(0, 5)) {
         const div = document.createElement('div');
         const date = new Date(review.date_created * 1000);
-        div.innerText = `${review.response <= ReviewResponse.incorrect_but_easy_to_recall ? "❌" : "✅"} ${review.response} -- ${date.toLocaleString()}`;
+        div.innerText = `${review.response <= ReviewResponse.incorrect ? "❌" : "✅"} ${review.response} -- ${date.toLocaleString()}`;
         historyElement.appendChild(div);
       }
     });
@@ -226,6 +226,8 @@ class BrowseHeaderUi extends HTMLElement {
     this.style.padding = '0 0.5em';
     const searchBar = document.createElement('input');
     searchBar.style.flex = '1';
+    searchBar.style.fontSize = '1em';
+    searchBar.style.minWidth = '0';
     searchBar.setAttribute('placeholder', 'Search');
     searchBar.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
@@ -234,6 +236,7 @@ class BrowseHeaderUi extends HTMLElement {
     });
     this.appendChild(searchBar);
     const orderDropdown = <HTMLSelectElement>makeTag("select");
+    orderDropdown.style.fontSize = '1em';
     orderDropdown.innerHTML = `
     <option>Oldest</option>
     <option>Newest</option>
@@ -271,6 +274,7 @@ const kNormalize: Map<string, string> = new Map([
   ['ú', 'u'],
   ['ǔ', 'u'],
   ['ù', 'u'],
+  ['ǚ', 'u']
 ]);
 
 function normalize(text: string) {

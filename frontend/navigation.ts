@@ -102,6 +102,7 @@ export class NavigationController extends EventTarget {
     });
 
     view.style.flex = '1';
+    view.style.width = "100%";
     this._content.appendChild(view);
     this.dispatchEvent(new CustomEvent("stack-change", {
       detail: {

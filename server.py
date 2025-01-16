@@ -147,11 +147,16 @@ def reset():
       'name': f'Chinese | English'
     }
     lines = f.read().split('\n')
+    seen = set()
     for i in range(0, len(lines), 2):
       if lines[i + 0] == '' or lines[i + 1] == '':
         break
-      a = f'Chinese for: {lines[i + 0]}'
-      b = f'English for: {lines[i + 1]}'
+      if lines[i + 0] in seen:
+        print(f'SKIPPING {lines[i + 0]}')
+        continue
+      seen.add(lines[i + 0])
+      a = f'English for: {lines[i + 0]}'
+      b = f'Chinese for: {lines[i + 1]}'
       deck['cards'].append({
         'card_id': uuid.uuid4().hex, 'deck_id': deck['deck_id'], 'front': a, 'back': b,
       })

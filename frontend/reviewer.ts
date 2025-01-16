@@ -1,6 +1,7 @@
 import {Flow, Consumer, Context, StateFlow} from "./flow";
 import {FlashCardDb, Deck, Card, ReviewResponse} from "./db";
 import {ReviewQueue, ReviewQueueState, ReviewQueueStateEnum} from "./review_queue";
+import { makeButton } from "./checkbox";
 
 export interface ButtonUiState {
   text: string;
@@ -85,9 +86,12 @@ class ButtonPanel extends HTMLElement {
       this.innerHTML = '';
       this._key2button.clear();
       buttons.forEach((button: ButtonUiState) => {
-        const buttonElement = document.createElement('button');
-        buttonElement.innerText = button.text;
-        buttonElement.disabled = !button.enabled;
+        const buttonElement = makeButton(button.text);
+        if (button.enabled) {
+          buttonElement.removeAttribute('disabled');
+        } else {
+          buttonElement.setAttribute('disabled', 'true');
+        }
         buttonElement.onclick = () => {
           buttonElement.setAttribute('disabled', 'true');
           button.onClick();
@@ -218,36 +222,28 @@ export class ReviewerViewModelImpl extends ReviewerViewModel implements Reviewer
             hotkey: '1',
           },
           {
-            text: "Correct (2)",
+            text: "Hard (2)",
             enabled: true,
             onClick: () => {
-              loadNext(ReviewResponse.correct_after_hesitation);
+              loadNext(ReviewResponse.correct_but_difficult);
             },
             hotkey: '2',
           },
           {
-            text: "Hard (3)",
+            text: "Wrong (3)",
             enabled: true,
             onClick: () => {
-              loadNext(ReviewResponse.correct_with_serious_difficulty);
+              loadNext(ReviewResponse.incorrect);
             },
             hotkey: '3',
           },
           {
-            text: "Wrong (but close!) (4)",
-            enabled: true,
-            onClick: () => {
-              loadNext(ReviewResponse.incorrect_but_easy_to_recall);
-            },
-            hotkey: '4',
-          },
-          {
-            text: "Fail (5)",
+            text: "Blackout (4)",
             enabled: true,
             onClick: () => {
               loadNext(ReviewResponse.complete_blackout);
             },
-            hotkey: '5',
+            hotkey: '4',
           },
         ]);
       }
