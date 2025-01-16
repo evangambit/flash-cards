@@ -119,10 +119,6 @@ customElements.define('button-panel', ButtonPanel);
 export class ReviewerUi extends HTMLElement {
   _viewModel: ReviewerViewModel;
 
-  _remainingDiv: HTMLElement;
-  _cardUi: CardUi;
-  _buttonPanel: ButtonPanel;
-
   _consumer: Consumer<ReviewerUiState>;
   constructor(viewModel: ReviewerViewModel) {
     super();
@@ -131,17 +127,17 @@ export class ReviewerUi extends HTMLElement {
     this.style.display = 'flex';
     this.style.flexDirection = 'column';
 
-    this._remainingDiv = document.createElement('div');
-    this.appendChild(this._remainingDiv);
+    const remainingDiv = document.createElement('div');
+    this.appendChild(remainingDiv);
 
-    this._cardUi = new CardUi(viewModel.flow.map((state: ReviewerUiState) => state.card_ui_state));
-    this.appendChild(this._cardUi);
+    const cardUi = new CardUi(viewModel.flow.map((state: ReviewerUiState) => state.card_ui_state));
+    this.appendChild(cardUi);
 
-    this._buttonPanel = new ButtonPanel(viewModel.flow.map((state: ReviewerUiState) => state.buttons));
-    this.appendChild(this._buttonPanel);
+    const buttonPanel = new ButtonPanel(viewModel.flow.map((state: ReviewerUiState) => state.buttons));
+    this.appendChild(buttonPanel);
 
     this._consumer = viewModel.flow.consume((state: ReviewerUiState) => {
-      this._remainingDiv.innerText = `Remaining: ${state.numRemainingCards}`;
+      remainingDiv.innerText = `Remaining: ${state.numRemainingCards}`;
     });
   }
   connectedCallback() {

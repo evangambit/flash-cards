@@ -4,20 +4,14 @@ import {TableView} from './collection';
 import { NavigationController, TopBarProvider } from "./navigation";
 import { makeButton, makeTag, makeImage } from "./checkbox";
 
-interface BrowseUiState {
-  cards: Array<Card>;
-}
-
 class ExpandedCardUi extends HTMLElement {
   _consumer: Consumer<[Array<Review>, LearnState | undefined]>;
-  _detailsElement: HTMLElement;
-  _historyElement: HTMLElement;
   constructor(ctx: Context, db: FlashCardDb, card_id: string) {
     super();
-    this._detailsElement = document.createElement('div');
-    this.appendChild(this._detailsElement);
-    this._historyElement = document.createElement('div');
-    this.appendChild(this._historyElement);
+    const detailsElement = document.createElement('div');
+    this.appendChild(detailsElement);
+    const historyElement = document.createElement('div');
+    this.appendChild(historyElement);
     this._consumer = db.reviewsForCard(card_id).concat(db.learnStateForCard(card_id)).consume((state) => {
       const [reviews, learnState] = state;
 
@@ -25,7 +19,7 @@ class ExpandedCardUi extends HTMLElement {
       // easiness_factor":2.6,"review_interval":224640,"scheduled_time
       if (learnState) {
         const easiness = (learnState.easiness_factor - 1.3) / (2.5 - 1.3);
-        this._detailsElement.innerHTML = `
+        detailsElement.innerHTML = `
         <hr>
         <table>
         <tr><td>Next Review</td><td>${(new Date(learnState.scheduled_time * 1000)).toLocaleDateString()}</td></tr>
@@ -33,23 +27,23 @@ class ExpandedCardUi extends HTMLElement {
         <tr><td>Easiness</td><td>${easiness.toFixed(2)}</td></tr>
         `;
       } else {
-        this._detailsElement.innerHTML = '';
+        detailsElement.innerHTML = '';
       }
 
       // Update history element.
       if (reviews.length === 0) {
-        this._historyElement.innerHTML = `<hr>Never reviewed`;
+        historyElement.innerHTML = `<hr>Never reviewed`;
       } else if (reviews.length > 5) {
-        this._historyElement.innerHTML = `<hr>Reviewed ${reviews.length} times`;
+        historyElement.innerHTML = `<hr>Reviewed ${reviews.length} times`;
       } {
-        this._historyElement.innerHTML = `<hr>`;
+        historyElement.innerHTML = `<hr>`;
       }
       // TODO: add when this is scheduled for.
-      for (let review of reviews.slice(0, 5)) {
+      for (const review of reviews.slice(0, 5)) {
         const div = document.createElement('div');
         const date = new Date(review.date_created * 1000);
         div.innerText = `${review.response <= ReviewResponse.incorrect_but_easy_to_recall ? "❌" : "✅"} ${review.response} -- ${date.toLocaleString()}`;
-        this._historyElement.appendChild(div);
+        historyElement.appendChild(div);
       }
     });
   }
@@ -63,10 +57,7 @@ class ExpandedCardUi extends HTMLElement {
 customElements.define('expanded-card-ui', ExpandedCardUi);
 
 class CardCell extends HTMLElement {
-  _historyUi: ExpandedCardUi;
   _consumer: Consumer<Card>;
-  _cardDiv: HTMLElement;
-  _actionsDiv: HTMLElement;
   _lastCard: Card;
   constructor(ctx: Context, db: FlashCardDb, card_id: string, deck: Deck) {
     super();
@@ -77,18 +68,18 @@ class CardCell extends HTMLElement {
     this.style.display = 'flex';
     this.style.flexDirection = 'row';
 
-    this._cardDiv = document.createElement('div');
-    this._cardDiv.style.flex = '1';
-    let frontDiv = document.createElement('div');
-    this._cardDiv.appendChild(frontDiv);
-    this._cardDiv.appendChild(makeTag('hr'));
-    let backDiv = document.createElement('div');
-    this._cardDiv.appendChild(backDiv);
-    this.appendChild(this._cardDiv);
+    const cardDiv = document.createElement('div');
+    cardDiv.style.flex = '1';
+    const frontDiv = document.createElement('div');
+    cardDiv.appendChild(frontDiv);
+    cardDiv.appendChild(makeTag('hr'));
+    const backDiv = document.createElement('div');
+    cardDiv.appendChild(backDiv);
+    this.appendChild(cardDiv);
 
-    this._actionsDiv = document.createElement('div');
-    this._actionsDiv.style.display = 'flex';
-    this._actionsDiv.style.flexDirection = 'column';
+    const actionsDiv = document.createElement('div');
+    actionsDiv.style.display = 'flex';
+    actionsDiv.style.flexDirection = 'column';
     const editButton = makeButton('Edit');
     editButton.addEventListener('click', () => {
       NavigationController.navigation.present(new CardMakerUi(ctx, db, deck, this._lastCard));
@@ -97,9 +88,9 @@ class CardCell extends HTMLElement {
     deleteButton.addEventListener('click', () => {
       // TODO.
     });
-    this._actionsDiv.appendChild(editButton);
-    this._actionsDiv.appendChild(deleteButton);
-    this.appendChild(this._actionsDiv);
+    actionsDiv.appendChild(editButton);
+    actionsDiv.appendChild(deleteButton);
+    this.appendChild(actionsDiv);
 
     db.cardFlowPromise(card_id).then(flow => {
       this._consumer = flow.consume(((card: Card) => {
@@ -111,16 +102,16 @@ class CardCell extends HTMLElement {
         this._consumer.turn_on();
       }
     });
-    this._historyUi = new ExpandedCardUi(ctx, db, card_id);
+    const historyUi = new ExpandedCardUi(ctx, db, card_id);
     this.addEventListener('click', (e) => {
       const target: HTMLElement = <HTMLElement>e.target;
       if (target.classList.contains('button')) {
         return;
       }
-      if (this._cardDiv.contains(this._historyUi)) {
-        this._cardDiv.removeChild(this._historyUi);
+      if (cardDiv.contains(historyUi)) {
+        cardDiv.removeChild(historyUi);
       } else {
-        this._cardDiv.appendChild(this._historyUi);
+        cardDiv.appendChild(historyUi);
       }
     });
 
@@ -303,7 +294,7 @@ export class BrowseUi extends HTMLElement implements TopBarProvider {
       this._searchDataSource.query = query;
       this._searchDataSource.order = order;
     }));
-    let tableView = new TableView({
+    const tableView = new TableView({
       viewForId: (card_id: string) => {
         return new CardCell(ctx, db, card_id, deck);
       }

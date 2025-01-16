@@ -28,7 +28,7 @@ export function makeImage(src: URL, style: any = {}): HTMLImageElement {
   const element = <HTMLImageElement>document.createElement('img');
   element.src = src.href;
   for (let k in style) {
-    element.style[k] = style[k];
+    element.style.setProperty(k, style[k]);
   }
   return element;
 }
@@ -43,7 +43,7 @@ export function makeButton(content: (string | HTMLElement), style: any = {}): HT
     button.appendChild(content);
   }
   for (let k in style) {
-    button.style[k] = style[k];
+    button.style.setProperty(k, style[k]);
   }
   // Listen for disable attribute changes
   const observer = new MutationObserver((mutationsList, observer) => {
@@ -69,13 +69,13 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-export function makeTag(tagName: string, content?: string, style = {}): HTMLElement {
+export function makeTag(tagName: string, content?: string, style: any = {}): HTMLElement {
   let tag = document.createElement(tagName);
   if (content) {
     tag.innerText = content;
   }
   for (let k in style) {
-    tag.style[k] = style[k];
+    tag.style.setProperty(k, style[k]);
   }
   return tag;
 }

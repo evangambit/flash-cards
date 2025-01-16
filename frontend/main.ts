@@ -147,7 +147,6 @@ class DeckCell extends HTMLElement {
 customElements.define("deck-cell", DeckCell);
 
 class DeckPanel extends HTMLElement {
-  _tableView: TableView;
   _consumer: Consumer<[Array<Deck>, Map<string, number>]>;
   constructor(
     db: FlashCardDb,
@@ -156,7 +155,7 @@ class DeckPanel extends HTMLElement {
   ) {
     super();
     const decks: Map<string, Deck> = new Map();
-    this._tableView = new TableView(
+    const tableView = new TableView(
       {
         viewForId(deck_id: string): HTMLElement {
           return new DeckCell(db, decks.get(deck_id), reviewDeck, browseDeck);
@@ -169,7 +168,7 @@ class DeckPanel extends HTMLElement {
         return Array.from(decks.keys());
       })
     );
-    this.appendChild(this._tableView);
+    this.appendChild(tableView);
   }
 }
 customElements.define("deck-panel", DeckPanel);
