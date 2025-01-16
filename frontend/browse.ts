@@ -255,25 +255,59 @@ class BrowseHeaderUi extends HTMLElement {
 }
 customElements.define('browse-header-ui', BrowseHeaderUi);
 
+class SearchDataSource {
+  _query: StateFlow<string>;
+  _order: StateFlow<string>;
+  _flow: StateFlow<Array<Card>>;
+  constructor(ctx: Context, db: FlashCardDb, deck_id: string) {
+    this._query = ctx.create_state_flow('', 'SearchQuery');
+    this._order = ctx.create_state_flow('Oldest', 'SearchOrder');
+    this._flow = ctx.create_state_flow([], 'SearchDataSource');
+    this._flow = this._query.concat2(this._order, db.cardsInDeck(deck_id)).map((value: [string, string, Array<Card>]) => {
+      const [query, order, cards] = value;
+      const filteredCards = cards.filter(card => {
+        return card.front.toLowerCase().includes(query.toLowerCase()) || card.back.toLowerCase().includes(query.toLowerCase());
+      });
+      if (order === 'Oldest') {
+        filteredCards.sort((a, b) => (a.date_created - b.date_created) || a.card_id.localeCompare(b.card_id));
+      } else {
+        filteredCards.sort((a, b) => (b.date_created - a.date_created) || b.card_id.localeCompare(a.card_id));
+      }
+      return filteredCards;
+    });
+  }
+  set query(query: string) {
+    this._query.value = query;
+  }
+  set order(order: string) {
+    this._order.value = order;
+  }
+  get flow() {
+    return this._flow;
+  }
+}
+
 export class BrowseUi extends HTMLElement implements TopBarProvider {
   _landscape: StateFlow<boolean>;
   _topBarItems: StateFlow<Array<HTMLElement>>;
+  _searchDataSource: SearchDataSource;
   constructor(ctx: Context, db: FlashCardDb, deck: Deck) {
     super();
 
-    const cardsFlow = db.cardsInDeck(deck.deck_id);
+    this._searchDataSource = new SearchDataSource(ctx, db, deck.deck_id);
 
     this.style.overflow = 'hidden';
     this.style.overflowY = 'auto';
     this._landscape = ctx.create_state_flow(false, 'landscape');
     this.appendChild(new BrowseHeaderUi(ctx, db, (query: string, order: string) => {
-      // TODO
+      this._searchDataSource.query = query;
+      this._searchDataSource.order = order;
     }));
     let tableView = new TableView({
       viewForId: (card_id: string) => {
         return new CardCell(ctx, db, card_id, deck);
       }
-    }, cardsFlow.map((cards: Array<Card>) => {
+    }, this._searchDataSource.flow.map((cards: Array<Card>) => {
       return cards.map(card => card.card_id);
     }, 'Card -> ID'));
     tableView.style.maxHeight = '100%';

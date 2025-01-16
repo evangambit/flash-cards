@@ -60,17 +60,16 @@ class TableView extends HTMLElement {
       const addedIds: Set<string> = deltas['added'];
       const removedIds: Set<string> = deltas['removed'];
       const newIds: Array<string> = deltas['items'];
-      for (let id of newIds) {
-        if (removedIds.has(id)) {
-          const child = this._children.get(id);
-          if (!child) {
-            console.error('child not found for id', id);
-          } else {
-            this.removeChild(child);
-            this._children.delete(id);
-          }
-          continue;
+      for (let id of removedIds) {
+        const child = this._children.get(id);
+        if (!child) {
+          console.error('child not found for id', id);
+        } else {
+          this.content.removeChild(child);
+          this._children.delete(id);
         }
+      }
+      for (let id of newIds) {
         if (addedIds.has(id)) {
           let cell = this.viewFactory.viewForId(id);
           cell.setAttribute('cell-id', id);
