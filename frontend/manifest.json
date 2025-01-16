@@ -1,0 +1,17 @@
+{
+  "name": "Flashcards by Morgan Redding",
+  "short_name": "Flashcards",
+  "start_url": "index.html",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ff0000",
+  "theme_color": "#ffebcd",
+  "description": "A flashcard app for studying",
+  "icons": [
+    {
+      "src": "assets/select_all.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
