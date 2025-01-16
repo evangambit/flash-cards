@@ -246,6 +246,39 @@ class BrowseHeaderUi extends HTMLElement {
 }
 customElements.define('browse-header-ui', BrowseHeaderUi);
 
+const kNormalize: Map<string, string> = new Map([
+  ['ā', 'a'],
+  ['á', 'a'],
+  ['ǎ', 'a'],
+  ['à', 'a'],
+
+  ['ē', 'e'],
+  ['é', 'e'],
+  ['ě', 'e'],
+  ['è', 'e'],
+
+  ['ī', 'i'],
+  ['í', 'i'],
+  ['ǐ', 'i'],
+  ['ì', 'i'],
+
+  ['ō', 'o'],
+  ['ó', 'o'],
+  ['ǒ', 'o'],
+  ['ò', 'o'],
+
+  ['ū', 'u'],
+  ['ú', 'u'],
+  ['ǔ', 'u'],
+  ['ù', 'u'],
+]);
+
+function normalize(text: string) {
+  return text.split('').map(c => c.toLocaleLowerCase()).map(c => {
+    return kNormalize.get(c) || c;
+  }).join('');
+}
+
 class SearchDataSource {
   _query: StateFlow<string>;
   _order: StateFlow<string>;
@@ -255,9 +288,10 @@ class SearchDataSource {
     this._order = ctx.create_state_flow('Oldest', 'SearchOrder');
     this._flow = ctx.create_state_flow([], 'SearchDataSource');
     this._flow = this._query.concat2(this._order, db.cardsInDeck(deck_id)).map((value: [string, string, Array<Card>]) => {
-      const [query, order, cards] = value;
+      let [query, order, cards] = value;
+      query = normalize(query);
       const filteredCards = cards.filter(card => {
-        return card.front.toLowerCase().includes(query.toLowerCase()) || card.back.toLowerCase().includes(query.toLowerCase());
+        return normalize(card.front).includes(query) || normalize(card.back).includes(query);
       });
       if (order === 'Oldest') {
         filteredCards.sort((a, b) => (a.date_created - b.date_created) || a.card_id.localeCompare(b.card_id));
