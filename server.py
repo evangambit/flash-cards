@@ -136,7 +136,7 @@ def reset():
         'card_id': uuid.uuid4().hex,
         'deck_id': deck['deck_id'],
         'front': f'Front {i + 1}',
-        'back': f'Front {i + 1}',
+        'back': f'Back {i + 1}',
       })
     decks.append(deck)
   
