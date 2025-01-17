@@ -921,7 +921,6 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
       return response.json();
     })
     .then((response: SyncResponse) => {
-      console.log('sync response', response);
       const remoteOperations: Array<Operation> = response.remote;
       const localOperations: Array<Operation> = response.local;
 

@@ -309,7 +309,6 @@ function main(db: FlashCardDb, ctx: Context) {
     buttonsFlow
   );
   NavigationController.navigation.addEventListener("stack-change", (e: CustomEvent) => {
-    console.log(e.detail);
     buttonsFlow.value = buttons.filter((button) => {
       if (button === debugButton) {
         return SHOW_DEBUG_BUTTONS;

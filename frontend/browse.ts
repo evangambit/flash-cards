@@ -247,7 +247,6 @@ class BrowseHeaderUi extends HTMLElement {
     menu.style.top = 'calc(100% + 0.5em)';
     options.forEach(option => {
       option.addEventListener('click', (e) => {
-        console.log('remove');
         orderDropdown.setAttribute('value', option.innerText);
         orderDropdown.innerText = option.innerText[0];
         search_fn(searchBar.value, orderDropdown.getAttribute('value'));
