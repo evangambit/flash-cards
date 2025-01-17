@@ -179,19 +179,6 @@ class SettingsUi extends HTMLElement {
 }
 customElements.define("settings-ui", SettingsUi);
 
-class SettingsButton extends HTMLElement {
-  constructor(db: FlashCardDb, ctx: Context) {
-    super();
-    this.setAttribute("tabIndex", "0");
-    this.classList.add("button");
-    this.innerText = "S";
-    this.addEventListener("click", () => {
-      NavigationController.navigation.push(new SettingsUi(db, ctx));
-    });
-  }
-}
-customElements.define("settings-button", SettingsButton);
-
 class SyncButton extends HTMLElement {
   _consumer: Consumer<number>;
   _ctx: Context;
@@ -307,7 +294,10 @@ function main(db: FlashCardDb, ctx: Context) {
       });
   });
 
-  const settingsButton = new SettingsButton(db, ctx);
+  const settingsButton = makeButton(makeImage(new URL("./assets/gear.png", import.meta.url), { height: "100%" }));
+  settingsButton.addEventListener("click", () => {
+    NavigationController.navigation.push(new SettingsUi(db, ctx));
+  });
   const buttons = [settingsButton, new SyncButton(db, ctx)];
   if (SHOW_DEBUG_BUTTONS) {
     buttons.push(debugButton);
