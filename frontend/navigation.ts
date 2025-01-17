@@ -1,5 +1,5 @@
 import { Context, Consumer, Flow, StateFlow } from "./flow";
-import { makeButton, makeImage } from "./checkbox";
+import { makeButton, makeImage, makeTag } from "./checkbox";
 
 function iff<T>(condition: T | undefined | null, f: (arg: T) => void) {
   if (condition) {

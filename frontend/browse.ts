@@ -142,6 +142,7 @@ class CardMakerUi extends HTMLElement {
     super();
     this.style.display = 'flex';
     this.style.flexDirection = 'column';
+    this.style.borderRadius = '0.5em';
     const frontElement = document.createElement('textarea');
     frontElement.placeholder = 'Front';
     this.appendChild(frontElement);
@@ -231,18 +232,40 @@ class BrowseHeaderUi extends HTMLElement {
     searchBar.setAttribute('placeholder', 'Search');
     searchBar.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
-        search_fn(searchBar.value, orderDropdown.value);
+        search_fn(searchBar.value, orderDropdown.getAttribute('value'));
       }
     });
     this.appendChild(searchBar);
-    const orderDropdown = <HTMLSelectElement>makeTag("select");
-    orderDropdown.style.fontSize = '1em';
-    orderDropdown.innerHTML = `
-    <option>Oldest</option>
-    <option>Newest</option>
-    `;
-    orderDropdown.addEventListener('change', () => {
-      search_fn(searchBar.value, orderDropdown.value);
+
+    const options = [
+      makeTag('div', 'Oldest'),
+      makeTag('div', 'Newest'),
+    ];
+    const menu = document.createElement('menu');
+    menu.style.position = 'absolute';
+    menu.style.right = '0';
+    menu.style.top = 'calc(100% + 0.5em)';
+    options.forEach(option => {
+      option.addEventListener('click', (e) => {
+        console.log('remove');
+        orderDropdown.setAttribute('value', option.innerText);
+        orderDropdown.innerText = option.innerText[0];
+        search_fn(searchBar.value, orderDropdown.getAttribute('value'));
+      });
+      menu.appendChild(option);
+    })
+
+    const orderDropdown = makeButton('O', {
+      height: '100%',
+      position: 'relative',
+    });
+    orderDropdown.setAttribute('value', 'Oldest');
+    window.addEventListener('click', (e) => {
+      if (e.target === orderDropdown) {
+        orderDropdown.appendChild(menu);
+      } else if (menu.isConnected) {
+        orderDropdown.removeChild(menu);
+      }
     });
     this.appendChild(orderDropdown);
   }
