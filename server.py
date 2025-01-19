@@ -24,7 +24,9 @@ def media_files(path):
 
 @app.route('/<path:path>')
 def static_files(path):
-  return send_from_directory('dist', path)
+  return send_from_directory('dist', path, mimetype={
+    '.ts': 'text/javascript',
+  }.get(path[-3:], None))
 
 def tuple2deck(t):
   return {
@@ -58,7 +60,7 @@ def make_operation(table, data, type='insert'):
   return {
     'type': type,
     'table': table,
-    'data': data
+    'row': data
   }
 
 @app.route('/api/sync', methods=['POST'])
@@ -80,8 +82,12 @@ def sync():
   cursor.execute('SELECT * FROM reviews WHERE remote_date > ?', (last_sync,))
   response += [make_operation('reviews', tuple2review(t)) for t in cursor.fetchall()]
 
+  # Sort by remote_date, then by date_created.
+  response.sort(key=lambda x: x['row']['remote_date'])
+  response.sort(key=lambda x: x['row']['date_created'])
+
   if len(response) > 0:
-    gCounter = max(x['data']['remote_date'] for x in response)
+    gCounter = max(x['row']['remote_date'] for x in response)
   else:
     # last_sync is apparently bigger than the remote_date for all server data. This should
     # probably never happen, but if it does... then last_sync is a valid value for gCounter.
@@ -91,17 +97,17 @@ def sync():
   try:
     cursor.execute('begin')
     for operation in client_operations:
-      operation['data']['remote_date'] = gCounter
+      operation['row']['remote_date'] = gCounter
       assert operation['type'] in ['insert']
       table = operation['table']
-      data = operation['data']
+      row = operation['row']
       assert table in ['decks', 'cards', 'reviews']
       if table == 'decks':
-        cursor.execute('INSERT OR REPLACE INTO decks VALUES (?, ?, ?, ?)', (data['deck_id'], data['deck_name'], data['date_created'], data['remote_date']))
+        cursor.execute('INSERT OR REPLACE INTO decks VALUES (?, ?, ?, ?)', (row['deck_id'], row['deck_name'], row['date_created'], row['remote_date']))
       elif table == 'cards':
-        cursor.execute('INSERT OR REPLACE INTO cards VALUES (?, ?, ?, ?, ?, ?)', (data['card_id'], data['deck_id'], data['front'], data['back'], data['date_created'], data['remote_date']))
+        cursor.execute('INSERT OR REPLACE INTO cards VALUES (?, ?, ?, ?, ?, ?)', (row['card_id'], row['deck_id'], row['front'], row['back'], row['date_created'], row['remote_date']))
       elif table == 'reviews':
-        cursor.execute('INSERT OR REPLACE INTO reviews VALUES (?, ?, ?, ?, ?, ?)', (data['review_id'], data['card_id'], data['deck_id'], data['response'], data['date_created'], data['remote_date']))
+        cursor.execute('INSERT OR REPLACE INTO reviews VALUES (?, ?, ?, ?, ?, ?)', (row['review_id'], row['card_id'], row['deck_id'], row['response'], row['date_created'], row['remote_date']))
     cursor.execute('commit')
   except:
     cursor.execute('rollback')

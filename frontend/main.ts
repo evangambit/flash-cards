@@ -5,6 +5,7 @@ import { BrowseUi } from "./browse";
 import { TableView } from "./collection";
 import { makeButton, makeImage, makeTag } from "./checkbox";
 import { NavigationController, TopBarProvider } from "./navigation";
+import { ListenableTable } from './sync';
 
 const USE_DEBUG_DATA = window.location.search.includes('debugdata=1');
 const SHOW_DEBUG_BUTTONS = false;
@@ -32,42 +33,36 @@ DBOpenRequest.onupgradeneeded = (event: IDBVersionChangeEvent) => {
     throw Error("Database is null");
   }
   const db: IDBDatabase = request.result;
-  db.onerror = (event) => {
-    console.error("Database error:", event);
-  };
 
-  console.log("Creating object stores");
-
-  const decks = db.createObjectStore("decks", { keyPath: "deck_id" }); // Deck
-  const cards = db.createObjectStore("cards", { keyPath: "card_id" }); // Card
-  const reviews = db.createObjectStore("reviews", { keyPath: "review_id" }); // Review
-  const learnState = db.createObjectStore("learn_state", {
-    keyPath: "card_id",
-  }); // Upcoming
-
-  // Useful for getting next card to review.
-  learnState.createIndex("index_deck_id", ["deck_id"], { unique: false });
-
-  // Useful for getting all cards in a deck.
-  cards.createIndex("index_deck_id", "deck_id", { unique: false });
-
-  // Useful for syncing.
-  decks.createIndex("index_remote_date", "remote_date", { unique: false });
-  cards.createIndex("index_remote_date", "remote_date", { unique: false });
-  reviews.createIndex("index_remote_date", "remote_date", { unique: false });
-
-  // Useful for recomputing "upcoming" for a card.
-  reviews.createIndex(
-    "index_card_id_and_date_created",
-    ["card_id", "date_created"],
-    { unique: false }
-  );
+  FlashCardDb.brandNew(db);
 };
 
-dbPromise.then((rawDb: IDBDatabase) => {
+interface Person {
+  name: string;
+  age: number;
+}
+
+// dbPromise.then((db: IDBDatabase) => {
+//   const table = new ListenableTable<Person>(db, "people", "name");
+//   table.addEventListener('insert', (e: CustomEvent) => {
+//     console.log('insert', e.detail);
+//   });
+//   table.addEventListener('update', (e: CustomEvent) => {
+//     console.log('update', e.detail);
+//   });
+//   table.insert({
+//     name: "Alice",
+//     age: 10,
+//   });
+//   table.insert({
+//     name: "Alice",
+//     age: 20,
+//   });
+// });
+
+dbPromise.then((db: IDBDatabase) => FlashCardDb.create(db, new Context())).then((db: FlashCardDb) => {
   console.log("Creating context");
-  const ctx = new Context();
-  const db = new FlashCardDb(rawDb, ctx);
+  const ctx = db.ctx;
   if (!USE_DEBUG_DATA) {
     main(db, ctx);
     return;
