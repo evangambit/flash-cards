@@ -18,6 +18,11 @@ module.exports = {
         use: 'ts-loader',
         exclude: /node_modules/,
       },
+      {
+        test: /tests\.js$/,
+        use: 'mocha-loader',
+        exclude: /node_modules/,
+      },
     ],
   },
   entry: ['./frontend/main.ts'],

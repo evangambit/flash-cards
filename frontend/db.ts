@@ -723,6 +723,13 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
       };
     });
   }
+  /**
+   * @param objectStoreName 
+   * @param obj 
+   * @param transaction 
+   * @param isUpdate 
+   * @returns 
+   */
   _insert_syncable<T extends SyncableRow>(
     objectStoreName: string,
     obj: T,
@@ -1170,6 +1177,34 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
   }
   _sync(): Promise<void> {
     const now = get_now();
+
+    /**
+     * Consider two scenarios:
+     * 
+     * 1) We create a row and sync
+     * 2) Another client deletes the row and syncs
+     * 3) We edit the row and sync
+     * 
+     * 1) We create a row and sync.
+     * 2) We edit the row and sync
+     * 
+     * Under a "last write wins" scenario we'd re-create the row. This would
+     * force us to never delete Review rows (since any deleted card may be
+     * resurrected at any time).
+     * 
+     * It would also force us to keep careful track of whether an operation is
+     * an modification or an addition, since we need to publish the correct
+     * event to our observers.
+     * 
+     * Considering "last write wins" was an arbitrary choice, it'd be foolish
+     * to stick with it if it causes these kinds of problems.
+     * 
+     * Our new philosophy:
+     * 
+     * Last write wins (against other writes), but deletions always win.
+     * 
+     * Edits that occur after a deletion are simply dropped.
+     */
 
     // Note: we don't sync "learn_state" since it is derived from "reviews".
     const localOperations: Array<Operation> = [];

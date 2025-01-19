@@ -91,13 +91,20 @@ Note: Since lambda relies on knowing the last time a card was seen, repetition i
 ## Building / Running locally.
 
 ```
-$ npx parcel build frontend/index.html --no-cache --no-content-hash
+$ npm run build
 $ python server.py
+```
+
+## Running tests:
+
+```
+$ npx jest
 ```
 
 ## Real server:
 
 ```
+ssh -i ~/Downloads/flash.ssh.pem ec2-user@18.218.221.127
 cd /home/ec2-user/flash-cards
 sudo ./.venv/bin/python -m gunicorn server:app -b '0.0.0.0:443' \
 --certfile /etc/letsencrypt/live/flashcards.morganredding.com/cert.pem \
