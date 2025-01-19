@@ -5,7 +5,6 @@ import { BrowseUi } from "./browse";
 import { TableView } from "./collection";
 import { makeButton, makeImage, makeTag } from "./checkbox";
 import { NavigationController, TopBarProvider } from "./navigation";
-import { ListenableTable } from './sync';
 
 const USE_DEBUG_DATA = window.location.search.includes('debugdata=1');
 const SHOW_DEBUG_BUTTONS = false;
@@ -41,24 +40,6 @@ interface Person {
   name: string;
   age: number;
 }
-
-// dbPromise.then((db: IDBDatabase) => {
-//   const table = new ListenableTable<Person>(db, "people", "name");
-//   table.addEventListener('insert', (e: CustomEvent) => {
-//     console.log('insert', e.detail);
-//   });
-//   table.addEventListener('update', (e: CustomEvent) => {
-//     console.log('update', e.detail);
-//   });
-//   table.insert({
-//     name: "Alice",
-//     age: 10,
-//   });
-//   table.insert({
-//     name: "Alice",
-//     age: 20,
-//   });
-// });
 
 dbPromise.then((db: IDBDatabase) => FlashCardDb.create(db, new Context())).then((db: FlashCardDb) => {
   console.log("Creating context");
