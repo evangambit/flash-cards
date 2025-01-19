@@ -163,13 +163,19 @@ class NumOverdueMaintainer {
   }
   recompute_all(): Promise<any> {
     const deckIds = Array.from(this._cardsToReview.keys());
-    return Promise.all(deckIds.map(deckId => {
-      return this._db.get_overdue_cards(deckId, get_now()).then((overdueCards: Array<Card>) => {
-        const overdueSet = new Set(overdueCards.map((card) => card.card_id));
-        this._cardsToReview.set(deckId, overdueSet);
-        this._numCardsOverdue.get(deckId).value = overdueSet.size;
-      });
-    }));
+    return Promise.all(
+      deckIds.map((deckId) => {
+        return this._db
+          .get_overdue_cards(deckId, get_now())
+          .then((overdueCards: Array<Card>) => {
+            const overdueSet = new Set(
+              overdueCards.map((card) => card.card_id)
+            );
+            this._cardsToReview.set(deckId, overdueSet);
+            this._numCardsOverdue.get(deckId).value = overdueSet.size;
+          });
+      })
+    );
   }
 }
 
@@ -754,8 +760,7 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
   _remove<T extends SyncableRow>(
     objectStoreName: string,
     row: T,
-    transaction: IDBTransaction | undefined = undefined,
-    suppressEvent: boolean = false
+    transaction: IDBTransaction | undefined = undefined
   ): Promise<void> {
     transaction =
       transaction ||
@@ -781,12 +786,7 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
           date_created: get_now(),
           remote_date: kUnknownRemoteDate,
         };
-        return this._insert_syncable(
-          "deletions",
-          deletion,
-          transaction,
-          suppressEvent
-        );
+        return this._insert_syncable("deletions", deletion, transaction);
       })
       .then(() => {});
   }
@@ -1268,7 +1268,10 @@ export class FlashCardDb extends EventTarget implements FlashCardDbApi {
           const requiredLearnStateUpdates = new Set<string>();
           for (const operations of [remoteOperations, localOperations]) {
             for (const operation of operations) {
-              if (operation.table === "cards" || operation.table === "reviews") {
+              if (
+                operation.table === "cards" ||
+                operation.table === "reviews"
+              ) {
                 const card_id = (<any>operation.row).card_id;
                 const deck_id = (<any>operation.row).deck_id;
                 requiredLearnStateUpdates.add(`${card_id}::${deck_id}`);
