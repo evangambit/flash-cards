@@ -38,6 +38,12 @@ return fetch("/api/sync", {
 });
 ```
 
+There are other ways to do syncing -- maybe the most obvious is to have a table of operations that can be run forward and backward. Syncing is then just a matter of reverting local operations to the earliest remote operation, and playing all operations forward.
+
+Unfortunately, if you're syncing for the first time to a very old database, you're going to have to play *every single operation* before the website is ready. This is a non-starter.
+
+A more complicated approach that manages multiple checkpoints and picks a nice one could work, but seems unnecessarily complex given our use case (99% of our operations are inserts). (To see the complexity, consider that if a local client syncs, it may have to re-perform operation that it has already synced, and that, on the server side, checkpoints can become invalidated at any time).
+
 ## Algorithm
 
 TL;DR: Mostly Super Memo 2

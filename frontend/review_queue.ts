@@ -1,4 +1,5 @@
-import {FlashCardDb, Deck, Card, Review, LearnState, get_now} from './db';
+import {FlashCardDb, LearnState} from './db';
+import {Deck, Card, get_now} from './sync';
 import {Deque} from './deque';
 import {Context, StateFlow} from "./flow";
 
@@ -86,6 +87,6 @@ export class ReviewQueue {
       throw Error('no card from queue');
     }
     const next = this._queue.front();
-    this._state.value = ReviewQueueState.create(card, next ? next.card_id : undefined, this._queue.length);
+    this._state.value = ReviewQueueState.create(card, next ? next.card_id : undefined, this._queue.length + 1);
   }
 }

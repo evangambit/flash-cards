@@ -56,11 +56,19 @@ def tuple2review(t):
     'remote_date': t[5],
   }
 
-def make_operation(table, data, type='insert'):
+def tuple2deletion(t):
   return {
-    'type': type,
+    'deletion_id': t[0],
+    'table': t[1],
+    'row_key': t[2],
+    'date_created': t[3],
+    'remote_date': t[4],
+  }
+
+def make_operation(table, row):
+  return {
     'table': table,
-    'row': data
+    'row': row,
   }
 
 @app.route('/api/sync', methods=['POST'])
@@ -81,6 +89,8 @@ def sync():
   response += [make_operation('cards', tuple2card(t)) for t in cursor.fetchall()]
   cursor.execute('SELECT * FROM reviews WHERE remote_date > ?', (last_sync,))
   response += [make_operation('reviews', tuple2review(t)) for t in cursor.fetchall()]
+  cursor.execute('SELECT * FROM deletions WHERE remote_date > ?', (last_sync,))
+  response += [make_operation('deletions', tuple2deletion(t)) for t in cursor.fetchall()]
 
   # Sort by remote_date, then by date_created.
   response.sort(key=lambda x: x['row']['remote_date'])
@@ -98,16 +108,19 @@ def sync():
     cursor.execute('begin')
     for operation in client_operations:
       operation['row']['remote_date'] = gCounter
-      assert operation['type'] in ['insert']
       table = operation['table']
       row = operation['row']
-      assert table in ['decks', 'cards', 'reviews']
+      assert table in ['decks', 'cards', 'reviews', 'deletions']
       if table == 'decks':
         cursor.execute('INSERT OR REPLACE INTO decks VALUES (?, ?, ?, ?)', (row['deck_id'], row['deck_name'], row['date_created'], row['remote_date']))
       elif table == 'cards':
         cursor.execute('INSERT OR REPLACE INTO cards VALUES (?, ?, ?, ?, ?, ?)', (row['card_id'], row['deck_id'], row['front'], row['back'], row['date_created'], row['remote_date']))
       elif table == 'reviews':
         cursor.execute('INSERT OR REPLACE INTO reviews VALUES (?, ?, ?, ?, ?, ?)', (row['review_id'], row['card_id'], row['deck_id'], row['response'], row['date_created'], row['remote_date']))
+      elif table == 'deletions':
+        pass  # TODO
+
+        
     cursor.execute('commit')
   except:
     cursor.execute('rollback')
@@ -129,6 +142,7 @@ def reset():
   cursor.execute('CREATE TABLE IF NOT EXISTS decks (deck_id STRING PRIMARY KEY, deck_name STRING, date_created REAL, remote_date INTEGER)')
   cursor.execute('CREATE TABLE IF NOT EXISTS cards (card_id STRING PRIMARY KEY, deck_id STRING, front STRING, back STRING, date_created REAL, remote_date INTEGER)')
   cursor.execute('CREATE TABLE IF NOT EXISTS reviews (review_id STRING PRIMARY KEY, card_id STRING, deck_id STRING, response STRING, date_created REAL, remote_date INTEGER)')
+  cursor.execute('CREATE TABLE IF NOT EXISTS deletions (deletion_id STRING PRIMARY KEY, table_name STRING, row_key STRING, date_created REAL, remote_date INTEGER)')
 
   decks = []
   for i in range(2):

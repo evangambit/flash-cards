@@ -1,5 +1,6 @@
 import {Flow, Consumer, Context, StateFlow} from "./flow";
-import {FlashCardDb, Deck, Card, ReviewResponse} from "./db";
+import {FlashCardDb} from "./db";
+import {Deck, Card, ReviewResponse} from './sync';
 import {ReviewQueue, ReviewQueueState, ReviewQueueStateEnum} from "./review_queue";
 import { makeButton } from "./checkbox";
 

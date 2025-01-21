@@ -1,6 +1,7 @@
 import { Context, Consumer, Flow } from "./flow";
 import { ReviewerUi, ReviewerViewModelImpl } from "./reviewer";
-import { FlashCardDb, Deck, Card } from "./db";
+import { FlashCardDb } from "./db";
+import { Deck, Card } from "./sync";
 import { BrowseUi } from "./browse";
 import { TableView } from "./collection";
 import { makeButton, makeImage, makeTag } from "./checkbox";
@@ -225,16 +226,12 @@ class HomeView extends HTMLElement implements TopBarProvider {
       this._topBarItems = this._ctx.create_state_flow(<Array<HTMLElement>>[], "TopBarButtons");
       return this._topBarItems;
     }
-    const resetButton = makeButton("Reset");
-    resetButton.addEventListener("click", () => {
-      this._db.reset();
-    });
 
     this._topBarItems = NavigationController.navigation.stackFlow.map((stack) => {
       if (stack[stack.length - 1] === this) {
-        return [resetButton];
+        return <Array<HTMLElement>>[];
       } else {
-        return [];
+        return <Array<HTMLElement>>[];
       }
     });
     return this._topBarItems;

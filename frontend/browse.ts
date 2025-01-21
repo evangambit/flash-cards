@@ -1,5 +1,6 @@
 import {Context, Flow, Consumer, StateFlow} from "./flow";
-import {FlashCardDb, Deck, Card, Review, ReviewResponse, LearnState} from './db';
+import {FlashCardDb, LearnState} from './db';
+import {Deck, Card, Review, ReviewResponse} from './sync';
 import {TableView} from './collection';
 import { NavigationController, TopBarProvider } from "./navigation";
 import { makeButton, makeTag, makeImage } from "./checkbox";
