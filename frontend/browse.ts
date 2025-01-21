@@ -87,7 +87,7 @@ class CardCell extends HTMLElement {
     });
     const deleteButton = makeButton('Delete');
     deleteButton.addEventListener('click', () => {
-      // TODO.
+      db.delete_card(card_id);
     });
     actionsDiv.appendChild(editButton);
     actionsDiv.appendChild(deleteButton);
@@ -193,7 +193,7 @@ class CardMakerUi extends HTMLElement {
         return;
       }
       if (isEditting) {
-        db.update_card(card, frontElement.value, backElement.value).then(() => {
+        db.modify_card(card, frontElement.value, backElement.value).then(() => {
           NavigationController.navigation.dismiss();
         });
       } else {

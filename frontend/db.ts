@@ -1,5 +1,5 @@
 import { Context, Flow, StateFlow } from "./flow";
-import { SyncableDb, Deck, Card, Review, ReviewResponse, Operation, largest_remote_date, kUnknownRemoteDate } from "./sync";
+import { SyncableDb, Deck, Card, Review, ReviewResponse, Operation, largest_remote_date, kUnknownRemoteDate, Bound } from "./sync";
 
 export function get_now(): number {
   return Date.now() / 1000;
@@ -147,8 +147,8 @@ class CardsInDeckMaintainer {
       const flow = this._flows.get(card.deck_id);
       const arr = flow.value.concat([card]);
       sort_cards(arr);
-      if (arr.length === flow.value.length) {
-        console.error('An add-card event should change how many cards are in a deck.');
+      if (arr.length !== flow.value.length + 1) {
+        console.error('An add-card event should increase the card count by 1');
       }
       flow.value = arr;
       this._countFlows.get(card.deck_id).value = arr.length;
@@ -175,10 +175,26 @@ class CardsInDeckMaintainer {
         .filter((c) => c.card_id !== card.card_id)
         .concat([card]);
       sort_cards(arr);
-    if (arr.length !== flow.value.length) {
-      console.error('A modify-card event should not change how many cards are in a deck.');
+      if (arr.length !== flow.value.length) {
+        console.error('A modify-card event should not change how many cards are in a deck.');
       }
       flow.value = arr;
+    });
+    db.addEventListener("delete", (event: CustomEvent) => {
+      if (event.detail.table !== "cards") {
+        return;
+      }
+      const card = <Card>event.detail.row;
+      if (!this._flows.has(card.deck_id)) {
+        return;
+      }
+      const flow = this._flows.get(card.deck_id);
+      const arr = flow.value.filter((c) => c.card_id !== card.card_id);
+      if (arr.length !== flow.value.length - 1) {
+        console.error('A delete-card event should decrease the card count by one');
+      }
+      flow.value = arr;
+      this._countFlows.get(card.deck_id).value = arr.length;
     });
   }
   deck(deck_id: string): Flow<Array<Card>> {
@@ -499,6 +515,7 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
 
     // Useful for getting next card to review.
     learnState.createIndex("index_deck_id", ["deck_id"], { unique: false });
+    learnState.createIndex("index_card_id", ["card_id"], { unique: false });
 
     // Useful for recomputing "upcoming" for a card.
     reviews.createIndex(
@@ -506,6 +523,7 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
       ["card_id", "date_created"],
       { unique: false }
     );
+    reviews.createIndex("index_card_id", ["card_id"], { unique: false });
 
     return r;
   }
@@ -577,7 +595,22 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
       remote_date: kUnknownRemoteDate,
     });
   }
-  update_card(card: Card, front: string, back: string): Promise<Card> {
+  delete_card(card_id: string): Promise<void> {
+    const txn = this.db.transaction(["deletions", "range_deletions", "reviews", "learn_state", "cards"], "readwrite");
+    this._delete<Card>("cards", card_id, txn);
+    this._delete_range<Review>("reviews", 'index_card_id', <Bound>{
+      value: [card_id],
+      open: false,
+    }, <Bound>{
+      value: [card_id],
+      open: false,
+    }, txn);
+    txn.objectStore('learn_state').delete(card_id);
+    return new Promise((resolve) => {
+      txn.addEventListener('complete', () => resolve());
+    });
+  }
+  modify_card(card: Card, front: string, back: string): Promise<Card> {
     card = Object.assign({}, card, { front: front, back: back });
     return this._modify<Card>("cards", card);
   }

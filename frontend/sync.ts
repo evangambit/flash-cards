@@ -49,17 +49,111 @@ export interface Review extends SyncableRow {
   response: ReviewResponse;
 }
 
-export interface Deletion extends SyncableRow {
+interface Deletion extends SyncableRow {
   deletion_id: string; // Primary ID
   table: string;
   row_key: string;
 }
+
+function less_than_or_equal(a: any, b: any) {
+  if (typeof(a) === 'string') {
+    return a.localeCompare(b) <= 0;
+  }
+  if (typeof(a) === 'number') {
+    return a < b;
+  }
+  throw Error('Unrecognized Type');
+}
+
+function less_than(a: any, b: any) {
+  if (typeof(a) === 'string') {
+    return a.localeCompare(b) < 0;
+  }
+  if (typeof(a) === 'number') {
+    return a < b;
+  }
+  throw Error('Unrecognized Type');
+}
+
+function does_range_match(range: RangeDeletion, value: any) {
+  assert_valid_range(range);
+  for (let i = 0; i < range.lower.value.length; ++i) {
+    const key = kIndices.get(range.index)[i];
+    const a = range.lower.value[i];
+    const b = range.upper.value[i];
+    if (range.lower.open) {
+      if (!less_than(a, value[key])) {
+        return false;
+      }
+    } else {
+      if (!less_than_or_equal(a, value[key])) {
+        return false;
+      }
+    }
+    if (range.upper.open) {
+      if (!less_than(value[key], b)) {
+        return false;
+      }
+    } else {
+      if (!less_than_or_equal(value[key], b)) {
+        return false;
+      }
+    }
+  }
+}
+
+function assert_valid_range(range: Range) {
+  if (range.lower.value.length !== range.upper.value.length) {
+    throw Error('Bad range');
+  }
+  for (let i = 0; i < range.lower.value.length; ++i) {
+    const value = range.lower.value[i];
+    const type = typeof(value);
+    if (typeof(range.upper.value[i]) !== type) {
+      throw Error('Bad range');
+    }
+    if (type !== 'number' && type !== 'string') {
+      throw Error('Bad range');
+    }
+  }
+}
+
+interface Range {
+  lower: Bound;
+  upper: Bound;
+}
+
+export interface Bound {
+  value: Array<number | string>;
+  open: boolean;
+}
+
+interface RangeDeletion extends SyncableRow, Range {
+  range_deletion_id: string;  // Primary ID
+  table: string;
+  index: string;  // Empty string for primary key.
+}
+
+// We're a bit lazy, and don't index by (table, index).
+const kIndices = new Map<string, Array<string>>([
+  ["index_remote_date", ["remote_date", "date_created"]],
+
+  ["index_deck_id", ["deck_id"]],
+
+  ["index_card_id", ["card_id"]],
+
+  ["index_card_id_and_date_created", ["card_id", "date_created"]],
+
+  ["index_card_id_and_date_created", ["card_id", "date_created"]],
+]);
+
 
 const kTable2Key = new Map([
   ["decks", "deck_id"],
   ["cards", "card_id"],
   ["reviews", "review_id"],
   ["deletions", "deletion_id"],
+  ["range_deletions", "range_deletion_id"],
 ]);
 
 /**
@@ -142,6 +236,7 @@ export function largest_remote_date(
     _largest_remote_date(db, "cards"),
     _largest_remote_date(db, "reviews"),
     _largest_remote_date(db, "deletions"),
+    _largest_remote_date(db, "range_deletions"),
   ]).then(values => Math.max.apply(null, values));
 }
 
@@ -179,18 +274,23 @@ export class SyncableDb extends EventTarget {
     const deletions = db.createObjectStore("deletions", {
       keyPath: kTable2Key.get("deletions"),
     });
+    const rangeDeletions = db.createObjectStore("range_deletions", {
+      keyPath: kTable2Key.get("range_deletions"),
+    });
 
     // Useful for syncing.
     decks.createIndex("index_remote_date", ["remote_date", "date_created"], { unique: false });
     cards.createIndex("index_remote_date", ["remote_date", "date_created"], { unique: false });
     reviews.createIndex("index_remote_date", ["remote_date", "date_created"], { unique: false });
     deletions.createIndex("index_remote_date", ["remote_date", "date_created"], { unique: false });
+    rangeDeletions.createIndex("index_remote_date", ["remote_date", "date_created"], { unique: false });
 
     return {
       decks,
       cards,
       reviews,
       deletions,
+      rangeDeletions,
     };
   }
   getAll<T>(tableName: string): Promise<Array<T>> {
@@ -290,28 +390,110 @@ export class SyncableDb extends EventTarget {
       });
     });
   }
-  _delete<T>(
+  _delete<T extends SyncableRow>(
     objectStoreName: string,
     key: string,
-    transaction: IDBTransaction | undefined = undefined
+    transaction: IDBTransaction | undefined = undefined,
+    remote_date: number = kUnknownRemoteDate,
   ): Promise<void> {
     transaction =
-      transaction || this.db.transaction(["deletions"], "readwrite");
+      transaction || this.db.transaction(["deletions", objectStoreName], "readwrite");
     const deletion = <Deletion>{
-      remote_date: kUnknownRemoteDate,
+      remote_date: remote_date,
       date_created: get_now(),
       deletion_id: new_id(),
       table: objectStoreName,
       row_key: key,
     };
-    transaction.objectStore("deletions").put(deletion);
+    // No need to keep track of this deletion if the server knows about it.
+    if (remote_date === kUnknownRemoteDate) {
+      transaction.objectStore("deletions").put(deletion);
+    }
+    // It can be convenient for listeners to know the object that was deleted, so we
+    // fetch the value before deleting it. Emitting the Deletion object is not useful
+    // for anyone (proof: nobody outside of sync.ts can even reference that class).
+    let row : T | undefined = undefined;
+    const r = transaction.objectStore(objectStoreName).get(key);
+    r.onsuccess = (e) => {
+      row = <T>((<any>e.target).result);
+      if (!row) {
+        throw Error('Trying to delete non-existent row');
+      }
+      transaction.objectStore(objectStoreName).delete(key);
+    };
+    r.onerror = (e) => {
+      console.error(e);
+    }
     return new Promise((resolve, reject) => {
       transaction.addEventListener("complete", () => {
-        this.dispatchEvent(
-          new CustomEvent("delete", {
-            detail: { table: objectStoreName, row: deletion },
-          })
-        );
+        if (row) {
+          this.dispatchEvent(
+            new CustomEvent("delete", {
+              detail: { table: objectStoreName, row: row },
+            })
+          );
+        }
+        resolve();
+      });
+    });
+  }
+
+  /**
+   * 
+   * @param objectStoreName 
+   * @param index 
+   * @param lower 
+   * @param upper 
+   * @param transaction 
+   * @param silent silent calls do not result in a syncable operations
+   * @returns 
+   */
+  _delete_range<T extends SyncableRow>(
+    objectStoreName: string,
+    index: string,
+    lower: Bound,
+    upper: Bound,
+    transaction: IDBTransaction | undefined = undefined,
+    remote_date: number = kUnknownRemoteDate,
+  ): Promise<void> {
+    transaction =
+      transaction || this.db.transaction(["range_deletions", objectStoreName], "readwrite");
+    const deletion = <RangeDeletion>{
+      range_deletion_id: new_id(),
+      remote_date: kUnknownRemoteDate,
+      date_created: get_now(),
+      table: objectStoreName,
+      index: index,
+      lower: lower,
+      upper: upper,
+    };
+    // No need to keep track of this deletion if the server knows about it.
+    if (remote_date === kUnknownRemoteDate) {
+      transaction.objectStore("range_deletions").put(deletion);
+    }
+    const keyRange = IDBKeyRange.bound(lower.value, upper.value, lower.open, upper.open);
+    // It can be convenient for listeners to know the object that was deleted, so we
+    // fetch the value before deleting it. Emitting the Deletion object is not useful
+    // for anyone (proof: nobody outside of sync.ts can even reference that class).
+    let rows : Array<T> | undefined = undefined;
+    const r = transaction.objectStore(objectStoreName).index(deletion.index).getAll(keyRange);
+    r.onsuccess = (e) => {
+      rows = <Array<T>>((<any>e.target).result);
+      console.log('deleting rows', rows);
+      transaction.objectStore(objectStoreName).delete(keyRange);
+    };
+    r.onerror = (e) => {
+      console.error(e);
+    }
+    return new Promise((resolve, reject) => {
+      transaction.addEventListener("complete", () => {
+        if (rows.length > 0) {
+          this.dispatchEvent(
+            new CustomEvent("range_delete", {
+              detail: { table: objectStoreName, rows: rows },
+            })
+          );
+        }
         resolve();
       });
     });
@@ -347,6 +529,7 @@ export class SyncableDb extends EventTarget {
       this._get_unsynced_operations("cards"),
       this._get_unsynced_operations("reviews"),
       this._get_unsynced_operations("deletions"),
+      this._get_unsynced_operations("range_deletions"),
     ]).then((ops) => {
       const [decks, cards, reviews, deletions] = ops;
       return decks.concat(cards, reviews, deletions);
@@ -441,62 +624,31 @@ export class SyncableDb extends EventTarget {
         );
 
         const txn = this.db.transaction(
-          ["decks", "cards", "reviews", "deletions"],
+          ["decks", "cards", "reviews", "deletions", "range_deletions"],
           "readwrite"
         );
 
-        // Any operations on rows that will be deleted should be ignored. Otherwise local
-        // modifications may overwrite remote deletions.
-        const deleted = new Set<string>();
-        for (const operations of [remoteOperations, localOperations]) {
-          for (const operation of operations) {
-            const row = operation.row;
-            const key = (<any>row)[kTable2Key.get(operation.table)];
-            if (operation.table === "deletions") {
-              deleted.add(`${operation.table}::${key}`);
-            }
-          }
-        }
-
         const events: Array<[string, string, any]> = [];
 
+        const allOperations = remoteOperations.concat(localOperations);
+        const nonDeleteOps = allOperations.filter(op => op.table !== 'deletions' && op.table !== 'range_deletions');
+        const deleteOps = allOperations.filter(op => op.table === 'deletions' || op.table === 'range_deletions');
+
         // Re-inserting local operations helps our updates win over the remote updates.
-        for (const operations of [remoteOperations, localOperations]) {
-          for (const operation of operations) {
-            const row: any = operation.row;
-            const dkey = `${operation.table}::${
-              row[kTable2Key.get(operation.table)]
-            }`;
-            if (operation.table != 'deletions') {
-              // Don't modify a row that has been deleted (this could resurrect it!)
-              if (deleted.has(dkey)) {
-                continue;
-              }
-              // TODO: generalize the idea that when a unique primary key is deleted,
-              // any insertions containing that key *anywhere* should be ignored as well.
-              if (operation.table === "reviews" && deleted.has(`cards::${row.card_id}`)) {
-                // Don't insert a review for a card that has been deleted.
-                continue;
-              }
-              if (operation.table === "cards" && deleted.has(`decks::${row.deck_id}`)) {
-                // Don't insert a review for a card that has been deleted.
-                continue;
-              }
-              // TODO: decide whether to use add or modify event
-              const key = (<any>operation.row)[kTable2Key.get(operation.table)];
-              txn.objectStore(operation.table).get(key).onsuccess = (e: CustomEvent) => {
-                if ((<any>e.target).result) {
-                  txn.objectStore(operation.table).put(operation.row);
-                  events.push(["modify", operation.table, row]);
-                } else {
-                  txn.objectStore(operation.table).add(operation.row);
-                  events.push(["add", operation.table, row]);
-                }
-              };
-            } else {
-              const deletion = <Deletion>operation.row;
-              txn.objectStore(deletion.table).delete(deletion.row_key);
-            }
+        for (const operation of nonDeleteOps) {
+          const row: any = operation.row;
+          const key = (<any>operation.row)[kTable2Key.get(operation.table)];
+          this._insert(operation.table, operation.row, txn);
+        }
+
+        // Perform deletions if necessary.
+        for (const operation of deleteOps) {
+          if (operation.table === 'deletions') {
+            const deletion = <Deletion>(operation.row);
+            this._delete(deletion.table, deletion.row_key, txn, deletion.remote_date);
+          } else {
+            const deletion = <RangeDeletion>(operation.row);
+            this._delete_range(deletion.table, deletion.index, deletion.lower, deletion.upper, txn, deletion.remote_date);
           }
         }
 
