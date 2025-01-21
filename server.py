@@ -28,29 +28,34 @@ def static_files(path):
     '.ts': 'text/javascript',
   }.get(path[-3:], None))
 
+# Note: sqlite3 "helpfully"/unbelievably will cast strings into ints/floats
+# if it can. This is bad because IndexDB is sane and treats "4" and 4 as
+# distinct (obviously this is very important for primary keys). So we cast
+# all expected strings to strings here to avoid this issue.
+
 def tuple2deck(t):
   return {
-    'deck_id': t[0],
-    'deck_name': t[1],
+    'deck_id': str(t[0]),
+    'deck_name': str(t[1]),
     'date_created': t[2],
     'remote_date': t[3],
   }
 
 def tuple2card(t):
   return {
-    'card_id': t[0],
-    'deck_id': t[1],
-    'front': t[2],
-    'back': t[3],
+    'card_id': str(t[0]),
+    'deck_id': str(t[1]),
+    'front': str(t[2]),
+    'back': str(t[3]),
     'date_created': t[4],
     'remote_date': t[5],
   }
 
 def tuple2review(t):
   return {
-    'review_id': t[0],
-    'card_id': t[1],
-    'deck_id': t[2],
+    'review_id': str(t[0]),
+    'card_id': str(t[1]),
+    'deck_id': str(t[2]),
     'response': t[3],
     'date_created': t[4],
     'remote_date': t[5],
@@ -58,9 +63,9 @@ def tuple2review(t):
 
 def tuple2deletion(t):
   return {
-    'deletion_id': t[0],
+    'deletion_id': str(t[0]),
     'table': t[1],
-    'row_key': t[2],
+    'row_key': str(t[2]),
     'date_created': t[3],
     'remote_date': t[4],
   }
