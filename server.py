@@ -77,7 +77,7 @@ def sync():
   last_sync = request.json['last_sync']
   print(f'SYNCING {last_sync}')
 
-  print(last_sync)
+  print(client_operations)
 
   db = get_db()
   cursor = db.cursor()
@@ -91,6 +91,8 @@ def sync():
   response += [make_operation('reviews', tuple2review(t)) for t in cursor.fetchall()]
   cursor.execute('SELECT * FROM deletions WHERE remote_date > ?', (last_sync,))
   response += [make_operation('deletions', tuple2deletion(t)) for t in cursor.fetchall()]
+
+  print(response)
 
   # Sort by remote_date, then by date_created.
   response.sort(key=lambda x: x['row']['remote_date'])
@@ -107,6 +109,7 @@ def sync():
   try:
     cursor.execute('begin')
     for operation in client_operations:
+      print(operation)
       operation['row']['remote_date'] = gCounter
       table = operation['table']
       row = operation['row']
@@ -160,30 +163,30 @@ def reset():
       })
     decks.append(deck)
   
-  with open('vocab.txt', 'r') as f:
-    deck = {
-      'deck_id': uuid.uuid4().hex,
-      'cards': [],
-      'name': f'Chinese | English'
-    }
-    lines = f.read().split('\n')
-    seen = set()
-    for i in range(0, len(lines), 2):
-      if lines[i + 0] == '' or lines[i + 1] == '':
-        break
-      if lines[i + 0] in seen:
-        print(f'SKIPPING {lines[i + 0]}')
-        continue
-      seen.add(lines[i + 0])
-      a = f'English for: {lines[i + 0]}'
-      b = f'Chinese for: {lines[i + 1]}'
-      deck['cards'].append({
-        'card_id': uuid.uuid4().hex, 'deck_id': deck['deck_id'], 'front': a, 'back': b,
-      })
-      deck['cards'].append({
-        'card_id': uuid.uuid4().hex, 'deck_id': deck['deck_id'], 'front': b, 'back': a,
-      })
-    decks.append(deck)
+  # with open('vocab.txt', 'r') as f:
+  #   deck = {
+  #     'deck_id': uuid.uuid4().hex,
+  #     'cards': [],
+  #     'name': f'Chinese | English'
+  #   }
+  #   lines = f.read().split('\n')
+  #   seen = set()
+  #   for i in range(0, len(lines), 2):
+  #     if lines[i + 0] == '' or lines[i + 1] == '':
+  #       break
+  #     if lines[i + 0] in seen:
+  #       print(f'SKIPPING {lines[i + 0]}')
+  #       continue
+  #     seen.add(lines[i + 0])
+  #     a = f'English for: {lines[i + 0]}'
+  #     b = f'Chinese for: {lines[i + 1]}'
+  #     deck['cards'].append({
+  #       'card_id': uuid.uuid4().hex, 'deck_id': deck['deck_id'], 'front': a, 'back': b,
+  #     })
+  #     deck['cards'].append({
+  #       'card_id': uuid.uuid4().hex, 'deck_id': deck['deck_id'], 'front': b, 'back': a,
+  #     })
+  #   decks.append(deck)
 
   # Add some sample data.
   t = time.time()

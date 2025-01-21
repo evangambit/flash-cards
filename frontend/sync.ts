@@ -252,6 +252,38 @@ export class SyncableDb extends EventTarget {
       });
     });
   }
+  // Use this when you're not sure if this is an add or a modify.
+  _insert<T extends SyncableRow>(
+    objectStoreName: string,
+    obj: T,
+    transaction: IDBTransaction | undefined = undefined
+  ) {
+    transaction =
+      transaction || this.db.transaction([objectStoreName], "readwrite");
+    const store = transaction.objectStore(objectStoreName);
+    const key = (<any>obj)[kTable2Key.get(objectStoreName)];
+    const r = store.get(key);
+    let insertType : string | undefined;
+    r.onsuccess = (e: CustomEvent) => {
+      if ((<any>e.target).result) {
+        insertType = 'modify';
+        store.put(obj);
+      } else {
+        insertType = 'add';
+        store.add(obj);
+      }
+    };
+    return new Promise((resolve, reject) => {
+      transaction.addEventListener("complete", () => {
+        this.dispatchEvent(
+          new CustomEvent(insertType, {
+            detail: { table: objectStoreName, row: obj },
+          })
+        );
+        return obj;
+      });
+    });
+  }
   _delete<T>(
     objectStoreName: string,
     key: string,
@@ -281,7 +313,7 @@ export class SyncableDb extends EventTarget {
   _get_unsynced_operations(tableName: string): Promise<Array<Operation>> {
     return new Promise((resolve, reject) => {
       const transaction = this.db.transaction(tableName, "readonly");
-      const keyRange = IDBKeyRange.only(kUnknownRemoteDate);
+      const keyRange = IDBKeyRange.upperBound([kUnknownRemoteDate, Infinity]);
       const request = transaction
         .objectStore(tableName)
         .index("index_remote_date")
@@ -353,10 +385,13 @@ export class SyncableDb extends EventTarget {
     this._syncPromise = this._sync().then(() => {});
     return this._syncPromise;
   }
+
+  // Subclass implementations of this should call _base_sync (below).
   _sync(): Promise<any> {
-    // Subclass implementations of this should call this._base_sync()
     return this._base_sync();
   }
+
+  // Don't override this method -- see "_sync" (above).
   _base_sync(): Promise<Array<Operation>> {
     return this.get_unsynced_operations()
       .then((ops) => {
@@ -403,7 +438,8 @@ export class SyncableDb extends EventTarget {
           "readwrite"
         );
 
-        // Any operations on rows that will be deleted should be ignored.
+        // Any operations on rows that will be deleted should be ignored. Otherwise local
+        // modifications may overwrite remote deletions.
         const deleted = new Set<string>();
         for (const operations of [remoteOperations, localOperations]) {
           for (const operation of operations) {
@@ -417,7 +453,7 @@ export class SyncableDb extends EventTarget {
 
         const emittedEvents: Array<[string, string, any]> = [];
 
-        // Re-inserting local operations helps our ("later") updates "win" over the remote updates.
+        // Re-inserting local operations helps our updates win over the remote updates.
         for (const operations of [remoteOperations, localOperations]) {
           for (const operation of operations) {
             const row: any = operation.row;
@@ -448,8 +484,6 @@ export class SyncableDb extends EventTarget {
             }
           }
         }
-
-        console.log(emittedEvents);
 
         return new Promise<Array<Operation>>((resolve, reject) => {
           txn.addEventListener("complete", () => {

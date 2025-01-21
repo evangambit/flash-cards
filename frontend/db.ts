@@ -61,7 +61,7 @@ class NumOverdueMaintainer {
     this._cardsToReview = new Map();
     this._numCardsOverdue = new Map();
     db.addEventListener("learn_state", (event: CustomEvent) => {
-      const learnState = <LearnState>event.detail.data;
+      const learnState = <LearnState>event.detail.row;
       if (!this._cardsToReview.has(learnState.deck_id)) {
         return;
       }
@@ -140,7 +140,7 @@ class CardsInDeckMaintainer {
       if (event.detail.table !== "cards") {
         return;
       }
-      const card = <Card>event.detail.data;
+      const card = <Card>event.detail.row;
       if (this._flows.has(card.deck_id)) {
         const flow = this._flows.get(card.deck_id);
         const arr = flow.value.concat([card]);
@@ -162,7 +162,7 @@ class CardsInDeckMaintainer {
       if (event.detail.table !== "cards") {
         return;
       }
-      const card = <Card>event.detail.data;
+      const card = <Card>event.detail.row;
       const flow = this._flows.get(card.deck_id);
       const arr = flow.value
         .filter((c) => c.card_id !== card.card_id)
@@ -305,7 +305,7 @@ class ReviewsForCardsMaintainer {
     this._flows.set(card_id, new WeakRef(flow));
     const onchange = (event: CustomEvent) => {
       if (event.detail.table === "reviews") {
-        const review = <Review>event.detail.data;
+        const review = <Review>event.detail.row;
         if (review.card_id === card_id) {
           const reviews = flow.value.concat(review);
           reviews.sort((a, b) => b.date_created - a.date_created);
@@ -329,7 +329,7 @@ class CardMaintainer {
       if (event.detail.table !== "cards") {
         return;
       }
-      const card: Card = <Card>event.detail.data;
+      const card: Card = <Card>event.detail.row;
       if (this._flows.has(card.card_id)) {
         const flow = this._flows.get(card.card_id).deref();
         if (flow) {
@@ -398,7 +398,7 @@ class LearnStateForCardsMaintainer {
     );
     this._flows.set(card_id, new WeakRef(flow));
     const onchange = (event: CustomEvent) => {
-      const learnState = <LearnState>event.detail.data;
+      const learnState = <LearnState>event.detail.row;
       if (learnState.card_id === card_id) {
         flow.value = learnState;
       }
@@ -626,7 +626,7 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
     }).then((obj: LearnState) => {
       this.dispatchEvent(
         new CustomEvent("learn_state", {
-          detail: { table: "learn_state", data: obj },
+          detail: { table: "learn_state", row: obj },
         })
       );
       return obj;
