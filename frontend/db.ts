@@ -141,13 +141,17 @@ class CardsInDeckMaintainer {
         return;
       }
       const card = <Card>event.detail.row;
-      if (this._flows.has(card.deck_id)) {
-        const flow = this._flows.get(card.deck_id);
-        const arr = flow.value.concat([card]);
-        sort_cards(arr);
-        flow.value = arr;
-        this._countFlows.get(card.deck_id).value = arr.length;
+      if (!this._flows.has(card.deck_id)) {
+        return;
       }
+      const flow = this._flows.get(card.deck_id);
+      const arr = flow.value.concat([card]);
+      sort_cards(arr);
+      if (arr.length === flow.value.length) {
+        console.error('An add-card event should change how many cards are in a deck.');
+      }
+      flow.value = arr;
+      this._countFlows.get(card.deck_id).value = arr.length;
     });
     db.addEventListener("drop", (event: CustomEvent) => {
       if (event.detail.table !== "cards") {
@@ -163,15 +167,16 @@ class CardsInDeckMaintainer {
         return;
       }
       const card = <Card>event.detail.row;
+      if (!this._flows.has(card.deck_id)) {
+        return;
+      }
       const flow = this._flows.get(card.deck_id);
       const arr = flow.value
         .filter((c) => c.card_id !== card.card_id)
         .concat([card]);
       sort_cards(arr);
-      if (arr.length !== flow.value.length) {
-        throw new Error(
-          "Updating a card should not change the number of cards in a deck"
-        );
+    if (arr.length !== flow.value.length) {
+      console.error('A modify-card event should not change how many cards are in a deck.');
       }
       flow.value = arr;
     });

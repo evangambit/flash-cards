@@ -229,7 +229,7 @@ export class SyncableDb extends EventTarget {
             detail: { table: objectStoreName, row: obj },
           })
         );
-        return obj;
+        resolve(obj);
       });
     });
   }
@@ -240,19 +240,25 @@ export class SyncableDb extends EventTarget {
   ): Promise<T> {
     transaction =
       transaction || this.db.transaction([objectStoreName], "readwrite");
+    obj.remote_date = kUnknownRemoteDate;
     transaction.objectStore(objectStoreName).put(obj);
     return new Promise((resolve, reject) => {
       transaction.addEventListener("complete", () => {
         this.dispatchEvent(
-          new CustomEvent("add", {
+          new CustomEvent("modify", {
             detail: { table: objectStoreName, row: obj },
           })
         );
-        return obj;
+        resolve(obj);
+      });
+      transaction.addEventListener('error', (e) => {
+        console.error(e);
       });
     });
   }
   // Use this when you're not sure if this is an add or a modify.
+  // IMPORTANT: the caller should think about whether they want
+  // remote_date to be kUnknownRemoteDate or not!
   _insert<T extends SyncableRow>(
     objectStoreName: string,
     obj: T,
@@ -280,7 +286,7 @@ export class SyncableDb extends EventTarget {
             detail: { table: objectStoreName, row: obj },
           })
         );
-        return obj;
+        resolve(obj);
       });
     });
   }
@@ -306,6 +312,7 @@ export class SyncableDb extends EventTarget {
             detail: { table: objectStoreName, row: deletion },
           })
         );
+        resolve();
       });
     });
   }
@@ -451,7 +458,7 @@ export class SyncableDb extends EventTarget {
           }
         }
 
-        const emittedEvents: Array<[string, string, any]> = [];
+        const events: Array<[string, string, any]> = [];
 
         // Re-inserting local operations helps our updates win over the remote updates.
         for (const operations of [remoteOperations, localOperations]) {
@@ -476,8 +483,16 @@ export class SyncableDb extends EventTarget {
                 continue;
               }
               // TODO: decide whether to use add or modify event
-              txn.objectStore(operation.table).put(row);
-              emittedEvents.push(["add", operation.table, row]);
+              const key = (<any>operation.row)[kTable2Key.get(operation.table)];
+              txn.objectStore(operation.table).get(key).onsuccess = (e: CustomEvent) => {
+                if ((<any>e.target).result) {
+                  txn.objectStore(operation.table).put(operation.row);
+                  events.push(["modify", operation.table, row]);
+                } else {
+                  txn.objectStore(operation.table).add(operation.row);
+                  events.push(["add", operation.table, row]);
+                }
+              };
             } else {
               const deletion = <Deletion>operation.row;
               txn.objectStore(deletion.table).delete(deletion.row_key);
@@ -499,7 +514,7 @@ export class SyncableDb extends EventTarget {
 
             // TODO: delete all deletions that have been synced?
 
-            for (const [type, table, row] of emittedEvents) {
+            for (const [type, table, row] of events) {
               this.dispatchEvent(
                 new CustomEvent(type, {
                   detail: { table, row },
