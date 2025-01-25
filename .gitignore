@@ -1,0 +1,8 @@
+.DS_Store
+.parcel-cache/
+__pycache__/
+database.db
+graph.graph
+node_modules/
+package-lock.json
+dist/
