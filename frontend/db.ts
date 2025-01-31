@@ -1,5 +1,5 @@
 import { Context, Flow, StateFlow } from "./flow";
-import { SyncableDb, Deck, Card, Review, ReviewResponse, Operation, largest_remote_date, kUnknownRemoteDate, Bound } from "./sync";
+import { SyncableDb, Deck, Card, Review, ReviewResponse, Operation, largest_remote_date, kUnknownRemoteDate, Deletable } from "./sync";
 
 export function get_now(): number {
   return Date.now() / 1000;
@@ -10,7 +10,7 @@ const kSecondsPerDay = 60 * 60 * 24;
 const kInitialReviewInterval = kSecondsPerDay;
 
 // Locally-maintained table. One row per card.
-export interface LearnState {
+export interface LearnState extends Deletable {
   card_id: string;
   deck_id: string;
   easiness_factor: number;
@@ -60,7 +60,7 @@ class NumOverdueMaintainer {
     this._ctx = ctx;
     this._cardsToReview = new Map();
     this._numCardsOverdue = new Map();
-    db.addEventListener("learn_state", (event: CustomEvent) => {
+    db.addEventListener("add_learn_state", (event: CustomEvent) => {
       const learnState = <LearnState>event.detail.row;
       if (!this._cardsToReview.has(learnState.deck_id)) {
         return;
@@ -78,6 +78,16 @@ class NumOverdueMaintainer {
           overdueCards.delete(learnState.card_id);
           this._numCardsOverdue.get(learnState.deck_id).value =
             overdueCards.size;
+        }
+      }
+    });
+    db.addEventListener('delete_learn_state', (event: CustomEvent) => {
+      const card_id = event.detail.card_id;
+      for (let deck_id of this._cardsToReview.keys()) {
+        const overdueCards = this._cardsToReview.get(deck_id);
+        if (overdueCards.has(card_id)) {
+          overdueCards.delete(card_id);
+          this._numCardsOverdue.get(deck_id).value = overdueCards.size;
         }
       }
     });
@@ -407,12 +417,12 @@ class LearnStateForCardsMaintainer {
           .then((learnState: LearnState) => {
             flow.value = learnState;
           });
-        this._db.addEventListener("learn_state", onchange);
+        this._db.addEventListener("add_learn_state", onchange);
         return undefined;
       },
       () => {
         // When we become cold, we stop listening.
-        this._db.removeEventListener("learn_state", onchange);
+        this._db.removeEventListener("add_learn_state", onchange);
         return undefined;
       },
       `Monitor-${card_id}`
@@ -437,7 +447,6 @@ const kTable2Key: Map<string, string> = new Map(
     decks: "deck_id",
     cards: "card_id",
     reviews: "review_id",
-    deletions: "deletion_id",
     learn_state: "card_id",
     people: "name",
   })
@@ -570,7 +579,7 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
   get_decks(): Promise<Array<Deck>> {
     return this.getAll<Deck>("decks").then((decks: Array<Deck>) => {
       sort_decks(decks);
-      return decks;
+      return decks.filter((deck) => !deck.deleted);
     });
   }
   getAll<T>(tableName: string): Promise<Array<T>> {
@@ -596,18 +605,16 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
     });
   }
   delete_card(card_id: string): Promise<void> {
-    const txn = this.db.transaction(["deletions", "range_deletions", "reviews", "learn_state", "cards"], "readwrite");
-    this._delete<Card>("cards", card_id, txn);
-    this._delete_range<Review>("reviews", 'index_card_id', <Bound>{
-      value: [card_id],
-      open: false,
-    }, <Bound>{
-      value: [card_id],
-      open: false,
-    }, txn);
+    const txn = this.db.transaction(["reviews", "learn_state", "cards"], "readwrite");
+    this._delete("cards", card_id, txn);
     txn.objectStore('learn_state').delete(card_id);
     return new Promise((resolve) => {
-      txn.addEventListener('complete', () => resolve());
+      txn.addEventListener('complete', () => {
+        this.dispatchEvent(new CustomEvent('delete_learn_state', {
+          detail: { table: 'learn_state', card_id: card_id }
+        }));
+        resolve();
+      });
     });
   }
   modify_card(card: Card, front: string, back: string): Promise<Card> {
@@ -663,8 +670,8 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
       };
     }).then((obj: LearnState) => {
       this.dispatchEvent(
-        new CustomEvent("learn_state", {
-          detail: { table: "learn_state", row: obj },
+        new CustomEvent("add_learn_state", {
+          detail: { table: "add_learn_state", row: obj },
         })
       );
       return obj;
@@ -751,7 +758,8 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
         .index("index_card_id_and_date_created")
         .getAll(keyRange);
       request.onsuccess = (event) => {
-        resolve((<IDBRequest>event.target).result);
+        const reviews: Array<Review> = (<IDBRequest>event.target).result;
+        resolve(reviews.filter((review) => !review.deleted));
       };
       request.onerror = (event) => {
         reject(event);
@@ -832,7 +840,8 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
       const objectStore = transaction.objectStore("cards");
       const request = objectStore.index("index_deck_id").getAll(deck_id);
       request.onsuccess = (event) => {
-        resolve((<IDBRequest>event.target).result);
+        const cards: Array<Card> = (<IDBRequest>event.target).result;
+        resolve(cards.filter((card) => !card.deleted));
       };
       request.onerror = (event) => {
         reject(event);
