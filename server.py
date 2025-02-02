@@ -61,15 +61,6 @@ def tuple2review(t):
     'remote_date': t[5],
   }
 
-def tuple2deletion(t):
-  return {
-    'deletion_id': str(t[0]),
-    'table': t[1],
-    'row_key': str(t[2]),
-    'date_created': t[3],
-    'remote_date': t[4],
-  }
-
 def make_operation(table, row):
   return {
     'table': table,
@@ -94,8 +85,6 @@ def sync():
   response += [make_operation('cards', tuple2card(t)) for t in cursor.fetchall()]
   cursor.execute('SELECT * FROM reviews WHERE remote_date > ?', (last_sync,))
   response += [make_operation('reviews', tuple2review(t)) for t in cursor.fetchall()]
-  cursor.execute('SELECT * FROM deletions WHERE remote_date > ?', (last_sync,))
-  response += [make_operation('deletions', tuple2deletion(t)) for t in cursor.fetchall()]
 
   print(response)
 
@@ -118,15 +107,15 @@ def sync():
       operation['row']['remote_date'] = gCounter
       table = operation['table']
       row = operation['row']
-      assert table in ['decks', 'cards', 'reviews', 'deletions']
+      assert table in ['decks', 'cards', 'reviews']
       if table == 'decks':
         cursor.execute('INSERT OR REPLACE INTO decks VALUES (?, ?, ?, ?)', (row['deck_id'], row['deck_name'], row['date_created'], row['remote_date']))
       elif table == 'cards':
         cursor.execute('INSERT OR REPLACE INTO cards VALUES (?, ?, ?, ?, ?, ?)', (row['card_id'], row['deck_id'], row['front'], row['back'], row['date_created'], row['remote_date']))
       elif table == 'reviews':
         cursor.execute('INSERT OR REPLACE INTO reviews VALUES (?, ?, ?, ?, ?, ?)', (row['review_id'], row['card_id'], row['deck_id'], row['response'], row['date_created'], row['remote_date']))
-      elif table == 'deletions':
-        pass  # TODO
+      else:
+        assert False, f'Unknown table: {table}'
 
         
     cursor.execute('commit')
@@ -150,7 +139,6 @@ def reset():
   cursor.execute('CREATE TABLE IF NOT EXISTS decks (deck_id STRING PRIMARY KEY, deck_name STRING, date_created REAL, remote_date INTEGER)')
   cursor.execute('CREATE TABLE IF NOT EXISTS cards (card_id STRING PRIMARY KEY, deck_id STRING, front STRING, back STRING, date_created REAL, remote_date INTEGER)')
   cursor.execute('CREATE TABLE IF NOT EXISTS reviews (review_id STRING PRIMARY KEY, card_id STRING, deck_id STRING, response STRING, date_created REAL, remote_date INTEGER)')
-  cursor.execute('CREATE TABLE IF NOT EXISTS deletions (deletion_id STRING PRIMARY KEY, table_name STRING, row_key STRING, date_created REAL, remote_date INTEGER)')
 
   decks = []
   for i in range(2):

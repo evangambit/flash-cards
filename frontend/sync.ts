@@ -296,13 +296,19 @@ export class SyncableDb extends EventTarget {
     const r = store.get(key);
     let insertType : string | undefined;
     r.onsuccess = (e: CustomEvent) => {
-      if ((<any>e.target).result) {
-        insertType = 'modify';
-        store.put(obj);
-      } else {
+      const oldObj: T | undefined = (<any>e.target).result;
+      const wasAbsent = !oldObj || oldObj.deleted;
+      const isAbsent = obj.deleted;
+      if (wasAbsent && isAbsent) {
+        insertType = '';  // Best to not dispatch an event in this case.
+      } else if (wasAbsent && !isAbsent) {
         insertType = 'add';
-        store.add(obj);
+      } else if (!wasAbsent && isAbsent) {
+        insertType = 'delete';
+      } else {
+        insertType = 'modify';
       }
+      store.put(obj);
     };
     return new Promise((resolve, reject) => {
       transaction.addEventListener("complete", () => {
