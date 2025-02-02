@@ -1,7 +1,7 @@
 import { Context, Consumer, Flow } from "./flow";
 import { ReviewerUi, ReviewerViewModelImpl } from "./reviewer";
 import { FlashCardDb } from "./db";
-import { Deck, Card } from "./sync";
+import { Deck, Card, Account } from "./sync";
 import { BrowseUi } from "./browse";
 import { makeButton, makeImage, makeTag } from "./checkbox";
 import { NavigationController, TopBarProvider } from "./navigation";
@@ -42,7 +42,12 @@ interface Person {
   age: number;
 }
 
-dbPromise.then((db: IDBDatabase) => FlashCardDb.create(db, new Context())).then((db: FlashCardDb) => {
+const account: Account = {
+  account_id: "1",
+  token: "test",
+}
+
+dbPromise.then((db: IDBDatabase) => FlashCardDb.create(db, new Context(), account)).then((db: FlashCardDb) => {
   console.log("Creating context");
   const ctx = db.ctx;
   if (!USE_DEBUG_DATA) {

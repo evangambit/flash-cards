@@ -1,5 +1,5 @@
 import { Context, Flow, StateFlow } from "./flow";
-import { SyncableDb, Deck, Card, Review, ReviewResponse, Operation, largest_remote_date, kUnknownRemoteDate, Deletable } from "./sync";
+import { SyncableDb, Deck, Card, Review, ReviewResponse, Operation, largest_remote_date, kUnknownRemoteDate, Deletable, Account } from "./sync";
 
 export function get_now(): number {
   return Date.now() / 1000;
@@ -468,13 +468,13 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
    * asynchronous operations that it is convenient to do before the object is
    * fully created.
    */
-  static create(db: IDBDatabase, ctx: Context): Promise<FlashCardDb> {
+  static create(db: IDBDatabase, ctx: Context, account: Account): Promise<FlashCardDb> {
     return largest_remote_date(db).then((largestRemoteDate: number) => {
-      return new FlashCardDb(db, ctx, largestRemoteDate);
+      return new FlashCardDb(db, ctx, largestRemoteDate, account);
     });
   }
-  constructor(db: IDBDatabase, ctx: Context, largestRemoteDate: number) {
-    super(db, largestRemoteDate);
+  constructor(db: IDBDatabase, ctx: Context, largestRemoteDate: number, account: Account) {
+    super(db, largestRemoteDate, account);
     this.ctx = ctx;
     this._decksMaintainer = new DeckMaintainer(this, ctx);
     this._lastSyncTime = largestRemoteDate;
