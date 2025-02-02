@@ -336,6 +336,7 @@ export class SyncableDb extends EventTarget {
       row = (<any>e.target).result;
       if (row) {
         row.deleted = true;
+        row.remote_date = kUnknownRemoteDate;
         store.put(row);
       } else {
         console.error(`Could not find row with key ${key}`);
