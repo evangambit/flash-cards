@@ -489,20 +489,16 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
     this._isOffline = ctx.create_state_flow(true, "db.isOffline");
     this._cardMaintainer = new CardMaintainer(this, ctx);
 
+    // Note: these operations only affect syncable tables, so (e.g.) we do not
+    // count changes to the learn_state table.
     this.addEventListener("modify", (event: CustomEvent) => {
-      if (event.detail.table !== "learn_state") {
-        this._numChangesSinceLastSync.value++;
-      }
-    });
-    this.addEventListener("increment", (event: CustomEvent) => {
-      if (event.detail.table !== "learn_state") {
-        this._numChangesSinceLastSync.value++;
-      }
+      this._numChangesSinceLastSync.value++;
     });
     this.addEventListener("add", (event: CustomEvent) => {
-      if (event.detail.table !== "learn_state") {
-        this._numChangesSinceLastSync.value++;
-      }
+      this._numChangesSinceLastSync.value++;
+    });
+    this.addEventListener("delete", (event: CustomEvent) => {
+      this._numChangesSinceLastSync.value++;
     });
     this.get_unsynced_operations().then((operations) => {
       this._numChangesSinceLastSync.value = operations.length;
