@@ -34,7 +34,7 @@ self.addEventListener('fetch', (event) => {
       const cache = await caches.open('mysite-dynamic');
       const cachedResponse = await cache.match(event.request);
       const networkResponsePromise = fetch(event.request).catch(err => {
-        console.warn(err);
+        // This catch() will handle exceptions thrown from the fetch() operation.
       });
 
       event.waitUntil(

@@ -972,12 +972,16 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
           )
         );
       }
-      return Promise.all(promises).then(() => remoteOperations);
+      return Promise.all(promises).then(() => remoteOperations).then(() => {
+        console.log("Synced");
+        this._signedInFlow.value = SignedInStatus.signedIn;
+      });
     })
     .catch((error) => {
       if (error instanceof TypeError) {
         console.log("No internet connection", error);
         this._isOffline.value = true;
+        this._signedInFlow.value = SignedInStatus.unknown;
         return;
       }
       console.error(error);
