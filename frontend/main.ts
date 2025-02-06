@@ -37,14 +37,9 @@ DBOpenRequest.onupgradeneeded = (event: IDBVersionChangeEvent) => {
   FlashCardDb.brandNew(db);
 };
 
-interface Person {
-  name: string;
-  age: number;
-}
-
 const account: Account = {
-  account_id: "1",
-  token: "test",
+  username: "alice",
+  password: "test",
 }
 
 dbPromise.then((db: IDBDatabase) => FlashCardDb.create(db, new Context(), account)).then((db: FlashCardDb) => {

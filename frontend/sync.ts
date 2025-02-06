@@ -176,8 +176,8 @@ export function largest_remote_date(
 }
 
 export interface Account {
-  account_id: string;  // A unique identifier for the account.
-  token: string;  // This is a secret token that should be kept secret.
+  username: string;  // A unique identifier for the account.
+  password: string;  // This is a secret token that should be kept secret.
 }
 
 /**
@@ -465,6 +465,9 @@ export class SyncableDb extends EventTarget {
         });
       })
       .then((response) => {
+        if (!response.ok) {
+          throw Error(`Failed to sync: ${response.statusText}`);
+        }
         return response.json();
       })
       .then((response: SyncResponse) => {

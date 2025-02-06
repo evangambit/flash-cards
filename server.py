@@ -2,6 +2,7 @@ import json
 import sqlite3
 import time
 import uuid
+import hashlib
 
 from flask import Flask, request, g, send_from_directory
 
@@ -67,16 +68,28 @@ def make_operation(table, row):
     'row': row,
   }
 
+def validate_account(cursor: sqlite3.Cursor, account):
+  password_sha256 = hashlib.sha256(account['password'].encode()).hexdigest()
+  cursor.execute('SELECT password_sha256 FROM accounts WHERE username = ?', (account['username'],))
+  row = cursor.fetchone()
+  if row is not None:
+    return row[0] == password_sha256
+  return False
+
 @app.route('/api/sync', methods=['POST'])
 def sync():
+  account = request.json['account']
   client_operations = request.json['operations']
   last_sync = request.json['last_sync']
-  print(f'SYNCING {last_sync}')
-
-  print(client_operations)
 
   db = get_db()
   cursor = db.cursor()
+
+  if not validate_account(cursor, account):
+    return 'Invalid account.', 403
+
+  print(f'SYNCING {last_sync}')
+  print(client_operations)
 
   response = []
   cursor.execute('SELECT * FROM decks WHERE remote_date > ?', (last_sync,))
@@ -139,6 +152,9 @@ def reset():
   cursor.execute('CREATE TABLE IF NOT EXISTS decks (deck_id STRING PRIMARY KEY, deck_name STRING, date_created REAL, remote_date INTEGER)')
   cursor.execute('CREATE TABLE IF NOT EXISTS cards (card_id STRING PRIMARY KEY, deck_id STRING, front STRING, back STRING, date_created REAL, remote_date INTEGER)')
   cursor.execute('CREATE TABLE IF NOT EXISTS reviews (review_id STRING PRIMARY KEY, card_id STRING, deck_id STRING, response STRING, date_created REAL, remote_date INTEGER)')
+  cursor.execute('CREATE TABLE IF NOT EXISTS accounts (username STRING PRIMARY KEY, password_sha256 STRING)')
+
+  cursor.execute('INSERT INTO accounts VALUES (?, ?)', ('alice', hashlib.sha256('test'.encode()).hexdigest()))
 
   decks = []
   for i in range(2):
