@@ -1,3 +1,5 @@
+import { StateFlow } from "./flow";
+
 export enum ReviewResponse {
   perfect = 3,
   correct_but_difficult = 2,
@@ -175,11 +177,6 @@ export function largest_remote_date(
   ]).then(values => Math.max.apply(null, values));
 }
 
-export interface Account {
-  username: string;  // A unique identifier for the account.
-  password: string;  // This is a secret token that should be kept secret.
-}
-
 /**
  * Base DB class that only knows about syncable rows (i.e. not LearnState).
  *
@@ -190,13 +187,11 @@ export interface Account {
  */
 export class SyncableDb extends EventTarget {
   db: IDBDatabase;
-  _account: Account;
   _lastRemoteSyncTime: number;
   _syncPromise: Promise<void> | undefined;
-  constructor(db: IDBDatabase, lastRemoteSyncTime: number, account: Account) {
+  constructor(db: IDBDatabase, lastRemoteSyncTime: number) {
     super();
     this.db = db;
-    this._account = account;
     this._lastRemoteSyncTime = lastRemoteSyncTime;
     this._syncPromise = undefined;
   }
@@ -456,7 +451,6 @@ export class SyncableDb extends EventTarget {
           method: "POST",
           body: JSON.stringify({
             operations: ops,
-            account: this._account,
             last_sync: this._lastRemoteSyncTime,
           }),
           headers: {

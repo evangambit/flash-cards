@@ -98,10 +98,57 @@ def get_token():
   expiration = time.time() + 3600  # Token expires in 1 hour
   token = jwt.encode({'username': username, 'exp': expiration}, SECRET_KEY, algorithm='HS256')
   response = app.make_response(json.dumps({
-    'token': token,
+    'signed_in': True,
     'expiration': expiration,
+    'message': 'Signed in.',
   }))
   response.set_cookie('token', token, httponly=True, secure=True, samesite='Lax')
+  return response, 200
+
+@app.route('/api/signout', methods=['POST'])
+def signout():
+  response = app.make_response('Signed out.')
+  response.set_cookie('token', '', httponly=True, secure=True, samesite='Lax', expires=0)
+  return response, 200
+
+def check_token(request):
+  token = request.cookies.get('token')
+
+  try:
+    payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+  except jwt.ExpiredSignatureError:
+    return json.dumps({
+      'signed_in': False,
+      'expiration': None,
+      'message': 'Token has expired.',
+    }), False
+  except jwt.InvalidTokenError:
+    return json.dumps({
+      'signed_in': False,
+      'expiration': None,
+      'message': 'Invalid token.',
+    }), False
+  
+  if payload['exp'] < time.time():
+    return json.dumps({
+      'signed_in': False,
+      'expiration': None,
+      'message': 'Token has expired.',
+    }), False
+  
+  return json.dumps({
+    'signed_in': True,
+    'expiration': payload['exp'],
+    'message': 'Token is valid.',
+  }), True
+
+@app.route('/api/am_i_signed_in', methods=['GET'])
+def am_i_signed_in():
+  token_check, signed_in = check_token(request)
+  response = app.make_response(token_check)
+  # Clear the cookie if the token is invalid.
+  if not signed_in:
+    response.set_cookie('token', '', httponly=True, secure=True, samesite='Lax', expires=0)
   return response, 200
 
 @app.route('/api/sync', methods=['POST'])
@@ -109,20 +156,8 @@ def sync():
   client_operations = request.json['operations']
   last_sync = request.json['last_sync']
 
-  # Print the token to the console for debugging.
-  token = request.cookies.get('token')
-  print(f'TOKEN: {token}')
-
-  kUnauthorized = 401
-  try:
-    payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
-  except jwt.ExpiredSignatureError:
-    return 'Token expired.', kUnauthorized
-  except jwt.InvalidTokenError:
-    return 'Invalid token.', kUnauthorized
-  
-  if payload['exp'] < time.time():
-    return 'Token expired.', kUnauthorized
+  if not check_token(request)[1]:
+    return '', 401
 
   db = get_db()
   cursor = db.cursor()

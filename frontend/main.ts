@@ -1,13 +1,13 @@
 import { Context, Consumer, Flow } from "./flow";
 import { ReviewerUi, ReviewerViewModelImpl } from "./reviewer";
 import { FlashCardDb } from "./db";
-import { Deck, Card, Account } from "./sync";
+import { Deck, Card } from "./sync";
 import { BrowseUi } from "./browse";
 import { makeButton, makeImage, makeTag } from "./checkbox";
 import { NavigationController, TopBarProvider } from "./navigation";
 import { DeckPanel } from "./deck_panel";
 
-const USE_DEBUG_DATA = window.location.search.includes('debugdata=1');
+const USE_DEBUG_DATA = window.location.search.includes("debugdata=1");
 const SHOW_DEBUG_BUTTONS = false;
 
 if (USE_DEBUG_DATA) {
@@ -37,41 +37,81 @@ DBOpenRequest.onupgradeneeded = (event: IDBVersionChangeEvent) => {
   FlashCardDb.brandNew(db);
 };
 
-const account: Account = {
-  username: "alice",
-  password: "test",
-}
-
-dbPromise.then((db: IDBDatabase) => FlashCardDb.create(db, new Context(), account)).then((db: FlashCardDb) => {
-  console.log("Creating context");
-  const ctx = db.ctx;
-  if (!USE_DEBUG_DATA) {
-    main(db, ctx);
-    return;
-  }
-  console.log("Adding debug data");
-  db.add_deck("deck_name")
-    .then((deck) => {
-      let promises = [];
-      for (let i = 0; i < 20; ++i) {
-        promises.push(db.add_card(deck.deck_id, `front ${i}`, `back ${i}`));
-      }
-      return Promise.all(promises);
-    })
-    .then(() => {
+dbPromise
+  .then((db: IDBDatabase) => FlashCardDb.create(db, new Context()))
+  .then((db: FlashCardDb) => {
+    console.log("Creating context");
+    const ctx = db.ctx;
+    if (!USE_DEBUG_DATA) {
       main(db, ctx);
-    });
-});
+      return;
+    }
+    console.log("Adding debug data");
+    db.add_deck("deck_name")
+      .then((deck) => {
+        let promises = [];
+        for (let i = 0; i < 20; ++i) {
+          promises.push(db.add_card(deck.deck_id, `front ${i}`, `back ${i}`));
+        }
+        return Promise.all(promises);
+      })
+      .then(() => {
+        main(db, ctx);
+      });
+  });
 
 class SettingsUi extends HTMLElement {
+  _consumer: Consumer<boolean>;
   constructor(db: FlashCardDb, ctx: Context) {
     super();
     const logoutButton = makeButton("Logout");
     logoutButton.addEventListener("click", () => {
-      db.logout();
-      NavigationController.navigation.pop();
+      logoutButton.setAttribute("disabled", "true");
+      db.sign_out().then(() => {
+        logoutButton.removeAttribute("disabled");
+      });
     });
     this.appendChild(logoutButton);
+
+    const loginPane = makeTag("div");
+    loginPane.style.display = "flex";
+    loginPane.style.flexDirection = "column";
+
+    const usernameInput = <HTMLInputElement>makeTag("input");
+    usernameInput.setAttribute("placeholder", "Username");
+    loginPane.appendChild(usernameInput);
+
+    const passwordInput = <HTMLInputElement>makeTag("input");
+    passwordInput.setAttribute("placeholder", "Password");
+    passwordInput.setAttribute("type", "password");
+    loginPane.appendChild(passwordInput);
+
+    const loginButton = makeButton("Login");
+    loginButton.addEventListener("click", () => {
+      loginButton.setAttribute("disabled", "true");
+      const username = usernameInput.value;
+      const password = passwordInput.value;
+      db.sign_in(username, password).then(() => {
+        loginButton.removeAttribute("disabled");
+      }).catch((e) => {
+        alert('Failed to login');
+        loginButton.removeAttribute("disabled");
+      });
+    });
+    loginPane.appendChild(loginButton);
+
+    this.appendChild(loginPane);
+
+    this._consumer = db.signedInStateFlow.consume((signedIn) => {
+      loginPane.style.display = signedIn ? "none" : "flex";
+      logoutButton.style.display = signedIn ? "block" : "none";
+    }, "SettingsUi");
+  }
+  connectedCallback() {
+    this._consumer.turn_on();
+  }
+  disconnectedCallback() {
+    this._consumer.turn_off();
   }
 }
 customElements.define("settings-ui", SettingsUi);
@@ -143,17 +183,22 @@ class HomeView extends HTMLElement implements TopBarProvider {
     }
 
     if (!SHOW_DEBUG_BUTTONS) {
-      this._topBarItems = this._ctx.create_state_flow(<Array<HTMLElement>>[], "TopBarButtons");
+      this._topBarItems = this._ctx.create_state_flow(
+        <Array<HTMLElement>>[],
+        "TopBarButtons"
+      );
       return this._topBarItems;
     }
 
-    this._topBarItems = NavigationController.navigation.stackFlow.map((stack) => {
-      if (stack[stack.length - 1] === this) {
-        return <Array<HTMLElement>>[];
-      } else {
-        return <Array<HTMLElement>>[];
+    this._topBarItems = NavigationController.navigation.stackFlow.map(
+      (stack) => {
+        if (stack[stack.length - 1] === this) {
+          return <Array<HTMLElement>>[];
+        } else {
+          return <Array<HTMLElement>>[];
+        }
       }
-    });
+    );
     return this._topBarItems;
   }
 }
@@ -187,35 +232,45 @@ function main(db: FlashCardDb, ctx: Context) {
       });
   });
 
-  const settingsButton = makeButton(makeImage(new URL("./assets/gear.png", import.meta.url), { height: "100%" }));
+  const settingsButton = makeButton(
+    makeImage(new URL("./assets/gear.png", import.meta.url), { height: "100%" })
+  );
   settingsButton.addEventListener("click", () => {
     NavigationController.navigation.push(new SettingsUi(db, ctx));
   });
-  const buttons = [settingsButton, new SyncButton(db, ctx)];
+
+  const onlineButton = makeButton("?");
+  db.signedInStateFlow
+    .consume((signedIn: boolean) => {
+      onlineButton.innerText = signedIn ? "✅" : "❌";
+    })
+    .turn_on();
+
+  const buttons = [settingsButton, new SyncButton(db, ctx), onlineButton];
   if (SHOW_DEBUG_BUTTONS) {
     buttons.push(debugButton);
   }
   const buttonsFlow = ctx.create_state_flow([], "TopBarButtons");
 
-  NavigationController.navigation = new NavigationController(
-    ctx,
-    buttonsFlow
+  NavigationController.navigation = new NavigationController(ctx, buttonsFlow);
+  NavigationController.navigation.addEventListener(
+    "stack-change",
+    (e: CustomEvent) => {
+      buttonsFlow.value = buttons.filter((button) => {
+        if (button === debugButton) {
+          return SHOW_DEBUG_BUTTONS;
+        }
+        if (button === settingsButton) {
+          const settingsUiCurrentlyInStack =
+            e.detail.stack.filter(
+              (element: HTMLElement) => element.tagName === "SETTINGS-UI"
+            ).length > 0;
+          return !settingsUiCurrentlyInStack;
+        }
+        return true;
+      });
+    }
   );
-  NavigationController.navigation.addEventListener("stack-change", (e: CustomEvent) => {
-    buttonsFlow.value = buttons.filter((button) => {
-      if (button === debugButton) {
-        return SHOW_DEBUG_BUTTONS;
-      }
-      if (button === settingsButton) {
-        const settingsUiCurrentlyInStack =
-        e.detail.stack.filter(
-          (element: HTMLElement) => element.tagName === "SETTINGS-UI"
-        ).length > 0;
-        return !settingsUiCurrentlyInStack;
-      }
-      return true;
-    });
-  });
   NavigationController.navigation.push(new HomeView(db, ctx));
 }
 

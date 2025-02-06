@@ -1,5 +1,5 @@
 import { Context, Flow, StateFlow } from "./flow";
-import { SyncableDb, Deck, Card, Review, ReviewResponse, Operation, largest_remote_date, kUnknownRemoteDate, Deletable, Account } from "./sync";
+import { SyncableDb, Deck, Card, Review, ReviewResponse, Operation, largest_remote_date, kUnknownRemoteDate, Deletable } from "./sync";
 
 export function get_now(): number {
   return Date.now() / 1000;
@@ -452,6 +452,12 @@ const kTable2Key: Map<string, string> = new Map(
   })
 );
 
+interface SignInResponse {
+  signed_in: boolean;
+  expiration: number | undefined;
+  message: string;
+}
+
 export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
   ctx: Context;
   _lastSyncTime: number; // The largest remote_date in the database.
@@ -463,18 +469,20 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
   _isOffline: StateFlow<boolean>;
   _decksMaintainer: DeckMaintainer;
   _cardMaintainer: CardMaintainer;
+  _signedInFlow: StateFlow<boolean>;
+
   /**
    * Creates a database. Use this (not the constructor) since there are some
    * asynchronous operations that it is convenient to do before the object is
    * fully created.
    */
-  static create(db: IDBDatabase, ctx: Context, account: Account): Promise<FlashCardDb> {
+  static create(db: IDBDatabase, ctx: Context): Promise<FlashCardDb> {
     return largest_remote_date(db).then((largestRemoteDate: number) => {
-      return new FlashCardDb(db, ctx, largestRemoteDate, account);
+      return new FlashCardDb(db, ctx, largestRemoteDate);
     });
   }
-  constructor(db: IDBDatabase, ctx: Context, largestRemoteDate: number, account: Account) {
-    super(db, largestRemoteDate, account);
+  constructor(db: IDBDatabase, ctx: Context, largestRemoteDate: number) {
+    super(db, largestRemoteDate);
     this.ctx = ctx;
     this._decksMaintainer = new DeckMaintainer(this, ctx);
     this._lastSyncTime = largestRemoteDate;
@@ -502,6 +510,11 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
     });
     this.get_unsynced_operations().then((operations) => {
       this._numChangesSinceLastSync.value = operations.length;
+    });
+
+    this._signedInFlow = ctx.create_state_flow(false, "db.signedIn");
+    fetch('/api/am_i_signed_in').then(r => r.json()).then((response: SignInResponse) => {
+      this._signedInFlow.value = response.signed_in;
     });
   }
   static brandNew(db: IDBDatabase) {
@@ -531,6 +544,33 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
     reviews.createIndex("index_card_id", ["card_id"], { unique: false });
 
     return r;
+  }
+  sign_in(username: string, password: string): Promise<boolean> {
+    return fetch("/api/signin", {
+      method: "POST",
+      body: JSON.stringify({
+        username: username,
+        password: password,
+      }),
+      headers: { "Content-Type": "application/json" },
+    }).then(r => r.json()).then((response: SignInResponse) => {
+      console.log(response);
+      this._signedInFlow.value = response.signed_in;
+      return response.signed_in;
+    });
+  }
+
+  sign_out(): Promise<boolean> {
+    return fetch("/api/signout", {
+      method: "POST",
+    }).then((response) => {
+      this._signedInFlow.value = false;
+      return response.ok;
+    });
+  }
+
+  get signedInStateFlow(): StateFlow<boolean> {
+    return this._signedInFlow;
   }
   card(card_id: string): Flow<Card | undefined> {
     return this._cardMaintainer.flow(card_id);
