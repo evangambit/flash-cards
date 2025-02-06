@@ -66,6 +66,12 @@ dbPromise.then((db: IDBDatabase) => FlashCardDb.create(db, new Context(), accoun
 class SettingsUi extends HTMLElement {
   constructor(db: FlashCardDb, ctx: Context) {
     super();
+    const logoutButton = makeButton("Logout");
+    logoutButton.addEventListener("click", () => {
+      db.logout();
+      NavigationController.navigation.pop();
+    });
+    this.appendChild(logoutButton);
   }
 }
 customElements.define("settings-ui", SettingsUi);

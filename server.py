@@ -5,6 +5,7 @@ import uuid
 import hashlib
 
 from flask import Flask, request, g, send_from_directory
+import jwt
 
 app = Flask(__name__)
 
@@ -68,25 +69,63 @@ def make_operation(table, row):
     'row': row,
   }
 
-def validate_account(cursor: sqlite3.Cursor, account):
-  password_sha256 = hashlib.sha256(account['password'].encode()).hexdigest()
-  cursor.execute('SELECT password_sha256 FROM accounts WHERE username = ?', (account['username'],))
-  row = cursor.fetchone()
-  if row is not None:
-    return row[0] == password_sha256
-  return False
+@app.route('/api/signup', methods=['POST'])
+def signup():
+  db = get_db()
+  cursor = db.cursor()
+  username = request.json['username']
+  password = request.json['password']
+  cursor.execute('SELECT * FROM accounts WHERE username = ?', (username,))
+  if cursor.fetchone() is not None:
+    return 'Username already exists.', 400
+  cursor.execute('INSERT INTO accounts VALUES (?, ?)', (username, hashlib.sha256(password.encode()).hexdigest()))
+  db.commit()
+  return 'Account created.', 200
+
+SECRET_KEY = 'your_secret_key_here'
+
+@app.route('/api/signin', methods=['POST'])
+def get_token():
+  db = get_db()
+  cursor = db.cursor()
+  print(request.json)
+  username = request.json['username']
+  password = request.json['password']
+  cursor.execute('SELECT * FROM accounts WHERE username = ? AND password_sha256 = ?', (username, hashlib.sha256(password.encode()).hexdigest()))
+  if cursor.fetchone() is None:
+    return 'Invalid username or password.', 400
+
+  expiration = time.time() + 3600  # Token expires in 1 hour
+  token = jwt.encode({'username': username, 'exp': expiration}, SECRET_KEY, algorithm='HS256')
+  response = app.make_response(json.dumps({
+    'token': token,
+    'expiration': expiration,
+  }))
+  response.set_cookie('token', token, httponly=True, secure=True, samesite='Lax')
+  return response, 200
 
 @app.route('/api/sync', methods=['POST'])
 def sync():
-  account = request.json['account']
   client_operations = request.json['operations']
   last_sync = request.json['last_sync']
 
+  # Print the token to the console for debugging.
+  token = request.cookies.get('token')
+  print(f'TOKEN: {token}')
+
+  kUnauthorized = 401
+  try:
+    payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+  except jwt.ExpiredSignatureError:
+    return 'Token expired.', kUnauthorized
+  except jwt.InvalidTokenError:
+    return 'Invalid token.', kUnauthorized
+  
+  if payload['exp'] < time.time():
+    return 'Token expired.', kUnauthorized
+
   db = get_db()
   cursor = db.cursor()
-
-  if not validate_account(cursor, account):
-    return 'Invalid account.', 403
 
   print(f'SYNCING {last_sync}')
   print(client_operations)
