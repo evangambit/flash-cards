@@ -458,6 +458,12 @@ interface SignInResponse {
   message: string;
 }
 
+export enum SignedInStatus {
+  signedIn,
+  signedOut,
+  unknown,
+}
+
 export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
   ctx: Context;
   _lastSyncTime: number; // The largest remote_date in the database.
@@ -469,7 +475,7 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
   _isOffline: StateFlow<boolean>;
   _decksMaintainer: DeckMaintainer;
   _cardMaintainer: CardMaintainer;
-  _signedInFlow: StateFlow<boolean>;
+  _signedInFlow: StateFlow<SignedInStatus>;
 
   /**
    * Creates a database. Use this (not the constructor) since there are some
@@ -512,9 +518,13 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
       this._numChangesSinceLastSync.value = operations.length;
     });
 
-    this._signedInFlow = ctx.create_state_flow(false, "db.signedIn");
-    fetch('/api/am_i_signed_in').then(r => r.json()).then((response: SignInResponse) => {
-      this._signedInFlow.value = response.signed_in;
+    this._signedInFlow = ctx.create_state_flow(SignedInStatus.unknown, "db.signedIn");
+    fetch('/api/am_i_signed_in', {
+      method: "POST",
+    }).then(r => r.json()).then((response: SignInResponse) => {
+      this._signedInFlow.value = SignedInStatus.signedIn;
+    }).catch((e) => {
+      this._signedInFlow.value = SignedInStatus.unknown;
     });
   }
   static brandNew(db: IDBDatabase) {
@@ -545,7 +555,7 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
 
     return r;
   }
-  sign_in(username: string, password: string): Promise<boolean> {
+  sign_in(username: string, password: string): Promise<SignedInStatus> {
     return fetch("/api/signin", {
       method: "POST",
       body: JSON.stringify({
@@ -555,21 +565,27 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
       headers: { "Content-Type": "application/json" },
     }).then(r => r.json()).then((response: SignInResponse) => {
       console.log(response);
-      this._signedInFlow.value = response.signed_in;
-      return response.signed_in;
+      this._signedInFlow.value = SignedInStatus.signedIn;
+      return this._signedInFlow.value;
+    }).catch((e) => {
+      this._signedInFlow.value = SignedInStatus.unknown;
+      return this._signedInFlow.value;
     });
   }
 
-  sign_out(): Promise<boolean> {
+  sign_out(): Promise<SignedInStatus> {
     return fetch("/api/signout", {
       method: "POST",
     }).then((response) => {
-      this._signedInFlow.value = false;
-      return response.ok;
+      this._signedInFlow.value = SignedInStatus.signedOut;
+      return this._signedInFlow.value;
+    }).catch((e) => {
+      this._signedInFlow.value = SignedInStatus.unknown;
+      return this._signedInFlow.value;
     });
   }
 
-  get signedInStateFlow(): StateFlow<boolean> {
+  get signedInStateFlow(): StateFlow<SignedInStatus> {
     return this._signedInFlow;
   }
   card(card_id: string): Flow<Card | undefined> {

@@ -1,6 +1,6 @@
 import { Context, Consumer, Flow } from "./flow";
 import { ReviewerUi, ReviewerViewModelImpl } from "./reviewer";
-import { FlashCardDb } from "./db";
+import { FlashCardDb, SignedInStatus } from "./db";
 import { Deck, Card } from "./sync";
 import { BrowseUi } from "./browse";
 import { makeButton, makeImage, makeTag } from "./checkbox";
@@ -61,7 +61,7 @@ dbPromise
   });
 
 class SettingsUi extends HTMLElement {
-  _consumer: Consumer<boolean>;
+  _consumer: Consumer<SignedInStatus>;
   constructor(db: FlashCardDb, ctx: Context) {
     super();
     const logoutButton = makeButton("Logout");
@@ -105,9 +105,9 @@ class SettingsUi extends HTMLElement {
 
     this.appendChild(loginPane);
 
-    this._consumer = db.signedInStateFlow.consume((signedIn) => {
-      loginPane.style.display = signedIn ? "none" : "flex";
-      logoutButton.style.display = signedIn ? "block" : "none";
+    this._consumer = db.signedInStateFlow.consume((status: SignedInStatus) => {
+      loginPane.style.display = status !== SignedInStatus.signedIn ? "none" : "flex";
+      logoutButton.style.display = status === SignedInStatus.signedIn ? "block" : "none";
     }, "SettingsUi");
   }
   connectedCallback() {
@@ -244,8 +244,17 @@ function main(db: FlashCardDb, ctx: Context) {
 
   const onlineButton = makeButton("?");
   db.signedInStateFlow
-    .consume((signedIn: boolean) => {
-      onlineButton.innerText = signedIn ? "✅" : "❌";
+    .consume((status: SignedInStatus) => {
+      if (status === SignedInStatus.signedIn) {
+        onlineButton.innerText = "✅";
+        onlineButton.setAttribute("title", "Signed in");
+      } else if (status === SignedInStatus.signedOut) {
+        onlineButton.innerText = "❌";
+        onlineButton.setAttribute("title", "Not signed in");
+      } else {
+        onlineButton.innerText = "⚠️";
+        onlineButton.setAttribute("title", "No connection");
+      }
     })
     .turn_on();
 

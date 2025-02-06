@@ -142,7 +142,7 @@ def check_token(request):
     'message': 'Token is valid.',
   }), True
 
-@app.route('/api/am_i_signed_in', methods=['GET'])
+@app.route('/api/am_i_signed_in', methods=['POST'])
 def am_i_signed_in():
   token_check, signed_in = check_token(request)
   response = app.make_response(token_check)
