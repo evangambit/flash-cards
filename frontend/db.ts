@@ -519,13 +519,7 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
     });
 
     this._signedInFlow = ctx.create_state_flow(SignedInStatus.unknown, "db.signedIn");
-    fetch('/api/am_i_signed_in', {
-      method: "POST",
-    }).then(r => r.json()).then((response: SignInResponse) => {
-      this._signedInFlow.value = SignedInStatus.signedIn;
-    }).catch((e) => {
-      this._signedInFlow.value = SignedInStatus.unknown;
-    });
+    this.refresh_sign_in_status();
   }
   static brandNew(db: IDBDatabase) {
     const r = SyncableDb.brandNew(db);
@@ -555,6 +549,19 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
 
     return r;
   }
+
+  refresh_sign_in_status(): Promise<SignedInStatus> {
+    return fetch('/api/am_i_signed_in', {
+      method: "POST",
+    }).then(r => r.json()).then((response: SignInResponse) => {
+      this._signedInFlow.value = SignedInStatus.signedIn;
+      return this._signedInFlow.value;
+    }).catch((e) => {
+      this._signedInFlow.value = SignedInStatus.unknown;
+      return this._signedInFlow.value;
+    });
+  }
+
   sign_in(username: string, password: string): Promise<SignedInStatus> {
     return fetch("/api/signin", {
       method: "POST",

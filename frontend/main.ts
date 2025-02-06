@@ -106,7 +106,8 @@ class SettingsUi extends HTMLElement {
     this.appendChild(loginPane);
 
     this._consumer = db.signedInStateFlow.consume((status: SignedInStatus) => {
-      loginPane.style.display = status !== SignedInStatus.signedIn ? "none" : "flex";
+      console.log(status);
+      loginPane.style.display = status !== SignedInStatus.signedIn ? "flex" : "none";
       logoutButton.style.display = status === SignedInStatus.signedIn ? "block" : "none";
     }, "SettingsUi");
   }
@@ -243,6 +244,9 @@ function main(db: FlashCardDb, ctx: Context) {
   });
 
   const onlineButton = makeButton("?");
+  onlineButton.onclick = () => {
+    db.refresh_sign_in_status();
+  };
   db.signedInStateFlow
     .consume((status: SignedInStatus) => {
       if (status === SignedInStatus.signedIn) {
