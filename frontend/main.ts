@@ -79,11 +79,14 @@ class SettingsUi extends HTMLElement {
 
     const usernameInput = <HTMLInputElement>makeTag("input");
     usernameInput.setAttribute("placeholder", "Username");
+    usernameInput.setAttribute("type", "text");
+    usernameInput.style.maxWidth = '15em';
     loginPane.appendChild(usernameInput);
 
     const passwordInput = <HTMLInputElement>makeTag("input");
     passwordInput.setAttribute("placeholder", "Password");
     passwordInput.setAttribute("type", "password");
+    passwordInput.style.maxWidth = '15em';
     loginPane.appendChild(passwordInput);
 
     const loginButton = makeButton("Login");
