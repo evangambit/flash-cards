@@ -38,6 +38,7 @@ class CardUi extends HTMLElement {
     this.style.padding = '0.5em';
     this.style.margin = '0.5em';
     this.style.userSelect = 'none';
+    this.style.flex = '1';
     this.addEventListener('click', () => {
       if (flow.value.flip) {
         flow.value.flip();
@@ -68,6 +69,7 @@ export interface ReviewerUiState {
   buttons: Array<ButtonUiState>;
   numRemainingCards: number;
   action_handler: ReviewerActionHandler;
+  isFlipped: boolean;
 }
 
 export class ReviewerViewModel {
@@ -143,6 +145,11 @@ export class ReviewerUi extends HTMLElement {
 
     this._consumer = viewModel.flow.consume((state: ReviewerUiState) => {
       remainingDiv.innerText = `Remaining: ${state.numRemainingCards}`;
+      if (state.isFlipped || state.numRemainingCards === 0) {
+        buttonPanel.style.opacity = '1.0';
+      } else {
+        buttonPanel.style.opacity = '0.0';
+      }
     });
   }
   connectedCallback() {
@@ -172,7 +179,8 @@ export class ReviewerViewModelImpl extends ReviewerViewModel implements Reviewer
           card_ui_state: undefined,
           buttons: [],
           numRemainingCards: queueState.numRemainingCards,
-          action_handler:   this,
+          action_handler: this,
+          isFlipped: isFlipped,
         };
       }
       if (queueState.state === ReviewQueueStateEnum.queueExhaused) { 
@@ -198,7 +206,8 @@ export class ReviewerViewModelImpl extends ReviewerViewModel implements Reviewer
           card_ui_state: undefined,
           buttons: buttons,
           numRemainingCards: queueState.numRemainingCards,
-          action_handler: this
+          action_handler: this,
+          isFlipped: isFlipped,
         };
       }
       const card: Card = queueState.currentCard;
@@ -206,48 +215,45 @@ export class ReviewerViewModelImpl extends ReviewerViewModel implements Reviewer
         throw Error('missing card');
       }
 
-      let buttons: Array<ButtonUiState> = [];
-      if (isFlipped) {
-        const loadNext = (result: ReviewResponse) => {
-          this._isFlipped.value = false;
-          this.mark_reviewed(card.card_id, result);
-          this._queue.next();
-        };
-        buttons = buttons.concat([
-          {
-            text: "Easy! (1)",
-            enabled: true,
-            onClick: () => {
-              loadNext(ReviewResponse.perfect);
-            },
-            hotkey: '1',
+    const loadNext = (result: ReviewResponse) => {
+      this._isFlipped.value = false;
+      this.mark_reviewed(card.card_id, result);
+      this._queue.next();
+    };
+    let buttons: Array<ButtonUiState> = [
+        {
+          text: "Easy! (1)",
+          enabled: true,
+          onClick: () => {
+            loadNext(ReviewResponse.perfect);
           },
-          {
-            text: "Hard (2)",
-            enabled: true,
-            onClick: () => {
-              loadNext(ReviewResponse.correct_but_difficult);
-            },
-            hotkey: '2',
+          hotkey: '1',
+        },
+        {
+          text: "Hard (2)",
+          enabled: true,
+          onClick: () => {
+            loadNext(ReviewResponse.correct_but_difficult);
           },
-          {
-            text: "Wrong (3)",
-            enabled: true,
-            onClick: () => {
-              loadNext(ReviewResponse.incorrect);
-            },
-            hotkey: '3',
+          hotkey: '2',
+        },
+        {
+          text: "Wrong (3)",
+          enabled: true,
+          onClick: () => {
+            loadNext(ReviewResponse.incorrect);
           },
-          {
-            text: "Blackout (4)",
-            enabled: true,
-            onClick: () => {
-              loadNext(ReviewResponse.complete_blackout);
-            },
-            hotkey: '4',
+          hotkey: '3',
+        },
+        {
+          text: "Blackout (4)",
+          enabled: true,
+          onClick: () => {
+            loadNext(ReviewResponse.complete_blackout);
           },
-        ]);
-      }
+          hotkey: '4',
+        },
+      ];
 
       const cardUiState: CardUiState = {
         content: isFlipped ? card.back : card.front,
@@ -257,7 +263,8 @@ export class ReviewerViewModelImpl extends ReviewerViewModel implements Reviewer
         card_ui_state: cardUiState,
         buttons: buttons,
         numRemainingCards: queueState.numRemainingCards,
-        action_handler: this
+        action_handler: this,
+        isFlipped: isFlipped,
       };
     }, 'ReviewerViewModel.flow');
   }

@@ -91,7 +91,8 @@ def get_token():
   print(request.json)
   username = request.json['username']
   password = request.json['password']
-  cursor.execute('SELECT * FROM accounts WHERE username = ? AND password_sha256 = ?', (username, hashlib.sha256(password.encode()).hexdigest()))
+  hashed_password = hashlib.sha256(password.encode()).hexdigest()
+  cursor.execute('SELECT * FROM accounts WHERE username = ? AND password_sha256 = ?', (username, hashed_password))
   if cursor.fetchone() is None:
     return 'Invalid username or password.', 400
 
