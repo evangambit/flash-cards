@@ -73,8 +73,10 @@ class SettingsUi extends HTMLElement {
     });
     this.appendChild(logoutButton);
 
+    this.style.width = '20em';
+
     const loginPane = makeTag("div");
-    loginPane.style.display = "flex";
+    loginPane.style.display = "inline-flex";
     loginPane.style.flexDirection = "column";
 
     const usernameInput = <HTMLInputElement>makeTag("input");
@@ -89,6 +91,15 @@ class SettingsUi extends HTMLElement {
     passwordInput.style.maxWidth = '15em';
     loginPane.appendChild(passwordInput);
 
+    const loginButtonContainer = makeTag("div");
+    loginButtonContainer.style.display = "flex";
+    loginButtonContainer.style.flexDirection = "row";
+    loginPane.appendChild(loginButtonContainer);
+
+    const padding = makeTag("div");
+    padding.style.flexGrow = "1";
+    loginButtonContainer.appendChild(padding);
+
     const loginButton = makeButton("Login");
     loginButton.addEventListener("click", () => {
       loginButton.setAttribute("disabled", "true");
@@ -101,13 +112,13 @@ class SettingsUi extends HTMLElement {
         loginButton.removeAttribute("disabled");
       });
     });
-    loginPane.appendChild(loginButton);
+    loginButtonContainer.appendChild(loginButton);
 
     this.appendChild(loginPane);
 
     this._consumer = db.signedInStateFlow.consume((status: SignedInStatus) => {
       console.log(status);
-      loginPane.style.display = status !== SignedInStatus.signedIn ? "flex" : "none";
+      loginPane.style.display = status !== SignedInStatus.signedIn ? "inline-flex" : "none";
       logoutButton.style.display = status === SignedInStatus.signedIn ? "block" : "none";
     }, "SettingsUi");
   }
