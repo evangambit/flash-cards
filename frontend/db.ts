@@ -1,5 +1,15 @@
 import { Context, Flow, StateFlow } from "./flow";
-import { SyncableDb, Deck, Card, Review, ReviewResponse, Operation, largest_remote_date, kUnknownRemoteDate, Deletable } from "./sync";
+import {
+  SyncableDb,
+  Deck,
+  Card,
+  Review,
+  ReviewResponse,
+  Operation,
+  largest_remote_date,
+  kUnknownRemoteDate,
+  Deletable,
+} from "./sync";
 
 export function get_now(): number {
   return Date.now() / 1000;
@@ -81,7 +91,7 @@ class NumOverdueMaintainer {
         }
       }
     });
-    db.addEventListener('delete_learn_state', (event: CustomEvent) => {
+    db.addEventListener("delete_learn_state", (event: CustomEvent) => {
       const card_id = event.detail.card_id;
       for (let deck_id of this._cardsToReview.keys()) {
         const overdueCards = this._cardsToReview.get(deck_id);
@@ -158,7 +168,7 @@ class CardsInDeckMaintainer {
       const arr = flow.value.concat([card]);
       sort_cards(arr);
       if (arr.length !== flow.value.length + 1) {
-        console.error('An add-card event should increase the card count by 1');
+        console.error("An add-card event should increase the card count by 1");
       }
       flow.value = arr;
       this._countFlows.get(card.deck_id).value = arr.length;
@@ -186,7 +196,9 @@ class CardsInDeckMaintainer {
         .concat([card]);
       sort_cards(arr);
       if (arr.length !== flow.value.length) {
-        console.error('A modify-card event should not change how many cards are in a deck.');
+        console.error(
+          "A modify-card event should not change how many cards are in a deck."
+        );
       }
       flow.value = arr;
     });
@@ -201,7 +213,9 @@ class CardsInDeckMaintainer {
       const flow = this._flows.get(card.deck_id);
       const arr = flow.value.filter((c) => c.card_id !== card.card_id);
       if (arr.length !== flow.value.length - 1) {
-        console.error('A delete-card event should decrease the card count by one');
+        console.error(
+          "A delete-card event should decrease the card count by one"
+        );
       }
       flow.value = arr;
       this._countFlows.get(card.deck_id).value = arr.length;
@@ -518,7 +532,10 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
       this._numChangesSinceLastSync.value = operations.length;
     });
 
-    this._signedInFlow = ctx.create_state_flow(SignedInStatus.unknown, "db.signedIn");
+    this._signedInFlow = ctx.create_state_flow(
+      SignedInStatus.unknown,
+      "db.signedIn"
+    );
     this.refresh_sign_in_status();
   }
   static brandNew(db: IDBDatabase) {
@@ -551,15 +568,31 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
   }
 
   refresh_sign_in_status(): Promise<SignedInStatus> {
-    return fetch('/api/am_i_signed_in', {
+    return fetch("/api/am_i_signed_in", {
       method: "POST",
-    }).then(r => r.json()).then((response: SignInResponse) => {
-      this._signedInFlow.value = SignedInStatus.signedIn;
-      return this._signedInFlow.value;
-    }).catch((e) => {
-      this._signedInFlow.value = SignedInStatus.unknown;
-      return this._signedInFlow.value;
-    });
+    })
+      .then((r) => r.json())
+      .then((response: SignInResponse) => {
+        this._signedInFlow.value = response.signed_in
+          ? SignedInStatus.signedIn
+          : SignedInStatus.signedOut;
+        this._maybe_schedule_signin_check(response);
+        return this._signedInFlow.value;
+      })
+      .catch((e) => {
+        this._signedInFlow.value = SignedInStatus.unknown;
+        return this._signedInFlow.value;
+      });
+  }
+
+  _maybe_schedule_signin_check(response: SignInResponse) {
+    if (!response.signed_in) {
+      return;
+    }
+    const dt = response.expiration - get_now();
+    setTimeout(() => {
+      this.refresh_sign_in_status();
+    }, 1000 * (dt + 0.5));
   }
 
   sign_in(username: string, password: string): Promise<SignedInStatus> {
@@ -570,26 +603,31 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
         password: password,
       }),
       headers: { "Content-Type": "application/json" },
-    }).then(r => r.json()).then((response: SignInResponse) => {
-      console.log(response);
-      this._signedInFlow.value = SignedInStatus.signedIn;
-      return this._signedInFlow.value;
-    }).catch((e) => {
-      this._signedInFlow.value = SignedInStatus.unknown;
-      return this._signedInFlow.value;
-    });
+    })
+      .then((r) => r.json())
+      .then((response: SignInResponse) => {
+        this._maybe_schedule_signin_check(response);
+        this._signedInFlow.value = SignedInStatus.signedIn;
+        return this._signedInFlow.value;
+      })
+      .catch((e) => {
+        this._signedInFlow.value = SignedInStatus.unknown;
+        return this._signedInFlow.value;
+      });
   }
 
   sign_out(): Promise<SignedInStatus> {
     return fetch("/api/signout", {
       method: "POST",
-    }).then((response) => {
-      this._signedInFlow.value = SignedInStatus.signedOut;
-      return this._signedInFlow.value;
-    }).catch((e) => {
-      this._signedInFlow.value = SignedInStatus.unknown;
-      return this._signedInFlow.value;
-    });
+    })
+      .then((response) => {
+        this._signedInFlow.value = SignedInStatus.signedOut;
+        return this._signedInFlow.value;
+      })
+      .catch((e) => {
+        this._signedInFlow.value = SignedInStatus.unknown;
+        return this._signedInFlow.value;
+      });
   }
 
   get signedInStateFlow(): StateFlow<SignedInStatus> {
@@ -664,14 +702,19 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
     });
   }
   delete_card(card_id: string): Promise<void> {
-    const txn = this.db.transaction(["reviews", "learn_state", "cards"], "readwrite");
+    const txn = this.db.transaction(
+      ["reviews", "learn_state", "cards"],
+      "readwrite"
+    );
     this._delete("cards", card_id, txn);
-    txn.objectStore('learn_state').delete(card_id);
+    txn.objectStore("learn_state").delete(card_id);
     return new Promise((resolve) => {
-      txn.addEventListener('complete', () => {
-        this.dispatchEvent(new CustomEvent('delete_learn_state', {
-          detail: { table: 'learn_state', card_id: card_id }
-        }));
+      txn.addEventListener("complete", () => {
+        this.dispatchEvent(
+          new CustomEvent("delete_learn_state", {
+            detail: { table: "learn_state", card_id: card_id },
+          })
+        );
         resolve();
       });
     });
@@ -701,7 +744,7 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
       scheduled_time: card.date_created,
     };
     this._add<Card>("cards", card, txn),
-    txn.objectStore("learn_state").put(learnState);
+      txn.objectStore("learn_state").put(learnState);
     return new Promise((resolve, reject) => {
       txn.oncomplete = (event) => {
         resolve(card);
@@ -947,49 +990,49 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
     });
   }
   _sync(): Promise<any> {
-    return super._base_sync().then((remoteOperations: Array<Operation>) => {
-      this._numChangesSinceLastSync.value = 0;
-      // After we've synced all syncable tables, we need to recompute the learn state for all cards.
-      const requiredLearnStateUpdates = new Set<string>();
-      for (const operation of remoteOperations) {
-        if (
-          operation.table === "cards" ||
-          operation.table === "reviews"
-        ) {
-          const card_id = (<any>operation.row).card_id;
-          const deck_id = (<any>operation.row).deck_id;
-          requiredLearnStateUpdates.add(`${card_id}::${deck_id}`);
+    return super
+      ._base_sync()
+      .then((remoteOperations: Array<Operation>) => {
+        this._numChangesSinceLastSync.value = 0;
+        // After we've synced all syncable tables, we need to recompute the learn state for all cards.
+        const requiredLearnStateUpdates = new Set<string>();
+        for (const operation of remoteOperations) {
+          if (operation.table === "cards" || operation.table === "reviews") {
+            const card_id = (<any>operation.row).card_id;
+            const deck_id = (<any>operation.row).deck_id;
+            requiredLearnStateUpdates.add(`${card_id}::${deck_id}`);
+          }
         }
-      }
-      const promises = [];
-      for (const key of requiredLearnStateUpdates) {
-        const [card_id, deck_id] = key.split("::");
-        promises.push(
-          this._compute_learn_state_from_scratch(card_id, deck_id).then(
-            (learnState) => {
-              return this._insert_learn_state(learnState);
-            }
-          )
-        );
-      }
-      return Promise.all(promises).then(() => remoteOperations).then(() => {
-        console.log("Synced");
-        this._signedInFlow.value = SignedInStatus.signedIn;
+        const promises = [];
+        for (const key of requiredLearnStateUpdates) {
+          const [card_id, deck_id] = key.split("::");
+          promises.push(
+            this._compute_learn_state_from_scratch(card_id, deck_id).then(
+              (learnState) => {
+                return this._insert_learn_state(learnState);
+              }
+            )
+          );
+        }
+        return Promise.all(promises)
+          .then(() => remoteOperations)
+          .then(() => {
+            console.log("Synced");
+            this._signedInFlow.value = SignedInStatus.signedIn;
+          });
+      })
+      .catch((error) => {
+        if (error instanceof TypeError) {
+          console.log("No internet connection", error);
+          this._isOffline.value = true;
+          this._signedInFlow.value = SignedInStatus.unknown;
+          return;
+        }
+        console.error(error);
+        return error;
       });
-    })
-    .catch((error) => {
-      if (error instanceof TypeError) {
-        console.log("No internet connection", error);
-        this._isOffline.value = true;
-        this._signedInFlow.value = SignedInStatus.unknown;
-        return;
-      }
-      console.error(error);
-      return error;
-    });
     // TODO: Clean up obsolete card histories to save space?
     // Reviewing 12 cards once each uses up 1/800k-th of our quota. Reviewing 1000 cards a day for a year
     // uses up 3.7% of our quota, so probably not a huge deal for now.
-
   }
 }
