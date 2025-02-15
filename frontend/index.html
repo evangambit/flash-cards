@@ -5,19 +5,77 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="manifest" href="./manifest.json">
 <style>
+
+/* html {
+  background-color: blanchedalmond;
+}
+.button {
+  border: solid black 1px;
+  background-color: burlywood;
+}
+.button[disabled] {
+  background-color: gray;
+}
+deck-cell {
+  border: solid black 1px;
+  box-shadow: 2px 1px #888;
+}
+card-cell {
+  border: solid black 1px;
+  box-shadow: 2px 1px #888;
+}
+card-ui {
+  border: solid black 1px;
+  box-shadow: 2px 1px #888;
+}
+card-maker-ui {
+  background-color: beige;
+}
+menu {
+  background-color: blanchedalmond;
+  border: solid black 1px;
+} */
+
+html {
+  background-color: rgb(8, 8, 48);
+  color: white;
+}
+.button {
+  border: solid black 1px;
+  background-color: #eee;
+  color: black;
+}
+.button[disabled] {
+  background-color: gray;
+}
+deck-cell {
+  border: solid #ddd 1px;
+}
+card-cell {
+  border: solid #ddd 1px;
+}
+card-ui {
+  border: solid #ddd 1px;
+}
+card-maker-ui {
+  background-color: midnightblue;
+  border: solid white 1px;
+}
+menu {
+  background-color: blanchedalmond;
+  border: solid black 1px;
+}
+
 html, body {
   padding: 0;
   margin: 0;
   height: 100%;
   width: 100%;
-  background-color: blanchedalmond;
 }
 body {
   font-size: 1.5em;
 }
 .button {
-  border: solid black 1px;
-  background-color: burlywood;
   border-radius: 0.25em;
   padding: 0.25em;
   margin: 0.25em;
@@ -29,19 +87,13 @@ body {
   background-color: gray;
   cursor: not-allowed;
 }
-deck-cell {
-  box-shadow: 2px 1px #888;
-}
 card-cell {
-  box-shadow: 2px 1px #888;
   cursor: pointer;
 }
 card-ui {
   text-align: center;
-  box-shadow: 2px 1px #888;
 }
 card-maker-ui {
-  background-color: beige;
   margin: 1em;
 }
 card-maker-ui > * {
@@ -63,10 +115,8 @@ input[type="text"], input[type="password"] {
 menu {
   display: flex;
   flex-direction: column;
-  background-color: blanchedalmond;
   padding: 0;
   margin: 0;
-  border: solid black 1px;
 }
 menu > * {
   cursor: pointer;

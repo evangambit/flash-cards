@@ -22,7 +22,6 @@ class DeckCell extends HTMLElement {
         this.style.display = "flex";
         this.style.flexDirection = "column";
         this.style.padding = "0.5em";
-        this.style.border = "1px solid black";
         this.style.borderRadius = "0.5em";
         this.style.margin = "0.5em";
 

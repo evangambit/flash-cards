@@ -62,7 +62,6 @@ class CardCell extends HTMLElement {
   _lastCard: Card;
   constructor(ctx: Context, db: FlashCardDb, card_id: string, deck: Deck) {
     super();
-    this.style.border = '1px solid black';
     this.style.margin = '0.5em';
     this.style.padding = '0.5em';
     this.style.borderRadius = '0.5em';

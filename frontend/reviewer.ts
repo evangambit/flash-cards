@@ -33,7 +33,6 @@ class CardUi extends HTMLElement {
     super();
     this._content = document.createElement('DIV');
     this.appendChild(this._content);
-    this.style.border = 'solid black 1px';
     this.style.borderRadius = '0.5em';
     this.style.padding = '0.5em';
     this.style.margin = '0.5em';
