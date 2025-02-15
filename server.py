@@ -1,4 +1,7 @@
+import base64
 import json
+import os
+import shutil
 import sqlite3
 import time
 import uuid
@@ -9,10 +12,16 @@ import jwt
 
 app = Flask(__name__)
 
-def get_db():
+def get_db(account_id):
   db = getattr(g, '_database', None)
   if db is None:
-    db = g._database = sqlite3.connect('database.db')
+    db = g._database = sqlite3.connect(os.path.join('account-dbs', f'{account_id}.db'))
+  return db
+
+def get_account_db():
+  db = getattr(g, '_account_database', None)
+  if db is None:
+    db = g._account_database = sqlite3.connect('accounts.db')
   return db
 
 # Files in "./dist" are served as static files.
@@ -71,7 +80,7 @@ def make_operation(table, row):
 
 @app.route('/api/signup', methods=['POST'])
 def signup():
-  db = get_db()
+  db = get_account_db()
   cursor = db.cursor()
   username = request.json['username']
   password = request.json['password']
@@ -84,11 +93,14 @@ def signup():
 
 SECRET_KEY = 'your_secret_key_here'
 
+def username2accountid(username: str):
+  return base64.b64encode(username.encode(), altchars=b'-_').decode()
+
 @app.route('/api/signin', methods=['POST'])
 def get_token():
-  db = get_db()
+  db = get_account_db()
   cursor = db.cursor()
-  print(request.json)
+  # TODO: Use a more secure password hashing algorithm.
   username = request.json['username']
   password = request.json['password']
   hashed_password = hashlib.sha256(password.encode()).hexdigest()
@@ -122,30 +134,30 @@ def check_token(request):
       'signed_in': False,
       'expiration': None,
       'message': 'Token has expired.',
-    }), False
+    }), False, None
   except jwt.InvalidTokenError:
     return json.dumps({
       'signed_in': False,
       'expiration': None,
       'message': 'Invalid token.',
-    }), False
+    }), False, None
   
   if payload['exp'] < time.time():
     return json.dumps({
       'signed_in': False,
       'expiration': None,
       'message': 'Token has expired.',
-    }), False
+    }), False, None
   
   return json.dumps({
     'signed_in': True,
     'expiration': payload['exp'],
     'message': 'Token is valid.',
-  }), True
+  }), True, username2accountid(payload['username'])
 
 @app.route('/api/am_i_signed_in', methods=['POST'])
 def am_i_signed_in():
-  token_check, signed_in = check_token(request)
+  token_check, signed_in, _ = check_token(request)
   response = app.make_response(token_check)
   # Clear the cookie if the token is invalid.
   if not signed_in:
@@ -157,10 +169,11 @@ def sync():
   client_operations = request.json['operations']
   last_sync = request.json['last_sync']
 
-  if not check_token(request)[1]:
+  _, is_good_token, account_id = check_token(request)
+  if not is_good_token:
     return '', 401
 
-  db = get_db()
+  db = get_db(account_id=account_id)
   cursor = db.cursor()
 
   print(f'SYNCING {last_sync}')
@@ -220,16 +233,28 @@ def sync():
 @app.route('/api/reset', methods=['GET', 'POST'])
 def reset():
   import os
-  if os.path.exists('database.db'):
-    os.remove('database.db')
-  db = get_db()
+  if os.path.exists('accounts.db'):
+    os.remove('accounts.db')
+  if os.path.exists('account-dbs'):
+    shutil.rmtree('account-dbs')
+  os.mkdir('account-dbs')
+  account_db = get_account_db()
+  account_cursor = account_db.cursor()
+  account_cursor.execute('CREATE TABLE IF NOT EXISTS accounts (username STRING PRIMARY KEY, password_sha256 STRING, account_id STRING)')
+  account_id = username2accountid('alice')
+  account_cursor.execute('INSERT INTO accounts VALUES (?, ?, ?)', (
+    'alice',
+    hashlib.sha256('test'.encode()).hexdigest(),
+    account_id,
+  ))
+  account_db.commit()
+
+  db = get_db(account_id)
   cursor = db.cursor()
   cursor.execute('CREATE TABLE IF NOT EXISTS decks (deck_id STRING PRIMARY KEY, deck_name STRING, date_created REAL, remote_date INTEGER)')
   cursor.execute('CREATE TABLE IF NOT EXISTS cards (card_id STRING PRIMARY KEY, deck_id STRING, front STRING, back STRING, date_created REAL, remote_date INTEGER)')
   cursor.execute('CREATE TABLE IF NOT EXISTS reviews (review_id STRING PRIMARY KEY, card_id STRING, deck_id STRING, response STRING, date_created REAL, remote_date INTEGER)')
-  cursor.execute('CREATE TABLE IF NOT EXISTS accounts (username STRING PRIMARY KEY, password_sha256 STRING)')
 
-  cursor.execute('INSERT INTO accounts VALUES (?, ?)', ('alice', hashlib.sha256('test'.encode()).hexdigest()))
 
   decks = []
   for i in range(2):
