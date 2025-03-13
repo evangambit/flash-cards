@@ -595,6 +595,28 @@ export class FlashCardDb extends SyncableDb implements FlashCardDbApi {
     }, 1000 * (dt + 0.5));
   }
 
+  sign_up(username: string, password: string): Promise<SignedInStatus> {
+    return fetch("/api/signup", {
+      method: "POST",
+      body: JSON.stringify({
+        username: username,
+        password: password,
+      }),
+      headers: { "Content-Type": "application/json" },
+    })
+      .then((r) => r.json())
+      .then((response: SignInResponse) => {
+        this._maybe_schedule_signin_check(response);
+        this._signedInFlow.value = SignedInStatus.signedIn;
+        return this._signedInFlow.value;
+      })
+      .catch((e) => {
+        this._signedInFlow.value = SignedInStatus.unknown;
+        return this._signedInFlow.value;
+      });
+  }
+
+  // TODO: Need to delete all pre-existing data when a user signs in to a new account.
   sign_in(username: string, password: string): Promise<SignedInStatus> {
     return fetch("/api/signin", {
       method: "POST",

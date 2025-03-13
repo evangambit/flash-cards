@@ -60,6 +60,26 @@ dbPromise
       });
   });
 
+class LoginUi extends HTMLElement {
+  _consumer: Consumer<SignedInStatus>;
+  constructor(db: FlashCardDb, ctx: Context) {
+    super();
+    const loginButton = makeButton("Login");
+    loginButton.addEventListener("click", () => {
+      loginButton.setAttribute("disabled", "true");
+      db.sign_in("test", "test").then(() => {
+        loginButton.removeAttribute("disabled");
+      });
+    });
+    this.appendChild(loginButton);
+
+    this._consumer = db.signedInStateFlow.consume((status: SignedInStatus) => {
+      console.log(status);
+      loginButton.style.display = status !== SignedInStatus.signedIn ? "block" : "none";
+    }, "LoginUi");
+  }
+}
+
 class SettingsUi extends HTMLElement {
   _consumer: Consumer<SignedInStatus>;
   constructor(db: FlashCardDb, ctx: Context) {
@@ -92,9 +112,24 @@ class SettingsUi extends HTMLElement {
     loginPane.appendChild(passwordInput);
 
     const loginButtonContainer = makeTag("div");
+    loginButtonContainer.classList.add('login-button-container');
     loginButtonContainer.style.display = "flex";
     loginButtonContainer.style.flexDirection = "row";
     loginPane.appendChild(loginButtonContainer);
+
+    const signUpButton = makeButton("Sign Up");
+    signUpButton.addEventListener("click", () => {
+      signUpButton.setAttribute("disabled", "true");
+      const username = usernameInput.value;
+      const password = passwordInput.value;
+      db.sign_up(username, password).then(() => {
+        signUpButton.removeAttribute("disabled");
+      }).catch((e) => {
+        alert('Failed to sign up');
+        signUpButton.removeAttribute("disabled");
+      });
+    });
+    loginButtonContainer.appendChild(signUpButton);
 
     const padding = makeTag("div");
     padding.style.flexGrow = "1";

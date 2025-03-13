@@ -78,19 +78,32 @@ def make_operation(table, row):
     'row': row,
   }
 
+def hash_password(username: str, password: str) -> str:
+  return hashlib.sha256(password.encode()).hexdigest()
+
 @app.route('/api/signup', methods=['POST'])
 def signup():
-  db = get_account_db()
-  cursor = db.cursor()
+  account_db = get_account_db()
+  account_cursor = account_db.cursor()
   username = request.json['username']
   password = request.json['password']
-  cursor.execute('SELECT * FROM accounts WHERE username = ?', (username,))
-  if cursor.fetchone() is not None:
+  account_cursor.execute('SELECT * FROM accounts WHERE username = ?', (username,))
+  if account_cursor.fetchone() is not None:
     return 'Username already exists.', 400
-  cursor.execute('INSERT INTO accounts VALUES (?, ?)', (username, hashlib.sha256(password.encode()).hexdigest()))
+  account_id = username2accountid(username)
+  account_cursor.execute('INSERT INTO accounts VALUES (?, ?, ?)', (username, hash_password(username, password), account_id))
+  account_db.commit()
+
+  db = get_db(account_id)
+  cursor = db.cursor()
+  cursor.execute('CREATE TABLE IF NOT EXISTS decks (deck_id STRING PRIMARY KEY, deck_name STRING, date_created REAL, remote_date INTEGER)')
+  cursor.execute('CREATE TABLE IF NOT EXISTS cards (card_id STRING PRIMARY KEY, deck_id STRING, front STRING, back STRING, date_created REAL, remote_date INTEGER)')
+  cursor.execute('CREATE TABLE IF NOT EXISTS reviews (review_id STRING PRIMARY KEY, card_id STRING, deck_id STRING, response STRING, date_created REAL, remote_date INTEGER)')
   db.commit()
+
   return 'Account created.', 200
 
+# TODO
 SECRET_KEY = 'your_secret_key_here'
 
 def username2accountid(username: str):
@@ -103,7 +116,7 @@ def get_token():
   # TODO: Use a more secure password hashing algorithm.
   username = request.json['username']
   password = request.json['password']
-  hashed_password = hashlib.sha256(password.encode()).hexdigest()
+  hashed_password = hash_password(username, password)
   cursor.execute('SELECT * FROM accounts WHERE username = ? AND password_sha256 = ?', (username, hashed_password))
   if cursor.fetchone() is None:
     return 'Invalid username or password.', 400
@@ -244,7 +257,7 @@ def reset():
   account_id = username2accountid('alice')
   account_cursor.execute('INSERT INTO accounts VALUES (?, ?, ?)', (
     'alice',
-    hashlib.sha256('test'.encode()).hexdigest(),
+    hash_password('alice', 'test'),
     account_id,
   ))
   account_db.commit()
