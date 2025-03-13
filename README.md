@@ -1,11 +1,6 @@
 
 A JavaScript "flow" library, and a flash card website that works offline.
 
-##
-
-TODO: delete cards
-TODO: search for cards
-
 ## Syncing
 
 Locally, every row has two dates: the date it was locally created, and the date the server learned about it.
@@ -14,10 +9,18 @@ Locally, every row has two dates: the date it was locally created, and the date 
 export interface Card {
   card_id: string;
   deck_id: string;
+
+  // HTML for front of card.
   front: string;
+
+  // HTML for back of card.
   back: string;
-  date_created: number;  // Time the user made this.
-  remote_date: integer;   // Counter when the server learned about this (0 if the sever doesn't know about it).
+
+  // Seconds since epoch when the user made this.
+  date_created: number;
+
+  // Counter when the server learned about this (0 if the sever doesn't know about it).
+  remote_date: integer;   
 }
 ```
 
@@ -38,11 +41,9 @@ return fetch("/api/sync", {
 });
 ```
 
-There are other ways to do syncing -- maybe the most obvious is to have a table of operations that can be run forward and backward. Syncing is then just a matter of reverting local operations to the earliest remote operation, and playing all operations forward.
+There are other ways to do syncing -- maybe the most obvious is to have a table of operations that can be run forward and backward. Syncing is then just a matter of reverting local operations to the earliest remote operation, and playing all operations forward. Unfortunately, if you're syncing for the first time to a very old database, you're going to have to play *every single operation* before the website is ready. This is a non-starter. The advantage of our system is that a brand new client gets the bare minimum amount of information that it needs to be up-to-date.
 
-Unfortunately, if you're syncing for the first time to a very old database, you're going to have to play *every single operation* before the website is ready. This is a non-starter.
-
-A more complicated approach that manages multiple checkpoints and picks a nice one could work, but seems unnecessarily complex given our use case (99% of our operations are inserts). (To see the complexity, consider that if a local client syncs, it may have to re-perform operation that it has already synced, and that, on the server side, checkpoints can become invalidated at any time).
+A more complicated approach that manages multiple checkpoints and picks a nice one to start rolling back-then-forward could work, but seems unnecessarily complex given our use case (99% of our operations are inserts). (To see the complexity, consider that if a local client syncs, it may have to re-perform operation that it has already synced, and also that, on the server side, checkpoints can become invalidated at any time).
 
 ## Algorithm
 
