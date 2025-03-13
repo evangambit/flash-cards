@@ -203,7 +203,11 @@ export class Consumer<T> extends Flow<void> {
     this._turn_off();
   }
   _source_changed(): boolean {
-    this._callback(this.sources[0].value);
+    try {
+      this._callback(this.sources[0].value);
+    } catch (e) {
+      console.error(e);
+    }
     return false;
   }
 }
@@ -217,7 +221,12 @@ export class MapFlow<T, U> extends Flow<U> {
     this._source = source;
   }
   _source_changed(): boolean {
-    this._value = this._f(this._source.value);
+    try {
+      this._value = this._f(this._source.value);
+    } catch (e) {
+      console.error(e);
+      return false;
+    }
     return true;
   }
 }
@@ -234,7 +243,12 @@ export class MapNFlow<T> extends Flow<T> {
     this._f = f;
   }
   _source_changed(): boolean {
-    this._value = this._f(...this.sources.map((flow) => flow.value));
+    try {
+      this._value = this._f(...this.sources.map((flow) => flow.value));
+    } catch (e) {
+      console.error(e);
+      return false;
+    }
     return true;
   }
 }
