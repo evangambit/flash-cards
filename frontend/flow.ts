@@ -162,6 +162,10 @@ export class Flow<T> {
     return new MapNFlow(this._context, [<Flow<any>>this].concat(flows), f);
   }
 
+  distinctUntilChanged(isEqual: (a: T, b: T) => boolean, name?: string): Flow<T> {
+      return new DistinctUntilChangedFlow<T>(this._context, this, isEqual, name);
+  }
+
   consume(f: (value: T) => void, name?: string): Consumer<T> {
     return new Consumer(this._context, [this], f, name);
   }
@@ -250,6 +254,62 @@ export class MapNFlow<T> extends Flow<T> {
       return false;
     }
     return true;
+  }
+}
+
+/**
+ * Necessary to distinguish between cases where a value is undefined versus
+ * truly unspecified (i.e. when undefined is a valid value for type "T").
+ */
+class Optional<T> {
+  _value?: T;
+  _isPresent: boolean;
+  private constructor(value: T | undefined, isPresent: boolean) {
+    this._value = value;
+    this._isPresent = isPresent;
+  }
+  static of<T>(value: T): Optional<T> {
+    return new Optional(value, true);
+  }
+  static empty<T>(): Optional<T> {
+    return new Optional<T>(undefined, false);
+  }
+  or(val: T): T {
+    if (this._isPresent) {
+      return this._value!;
+    } else {
+      return val;
+    }
+  }
+  if_else<R>(f: (_ : T) => R, g: () => R): R {
+    if (this._isPresent) {
+      return f(this._value!);
+    } else {
+      return g();
+    }
+  }
+}
+
+class DistinctUntilChangedFlow<T> extends Flow<T> {
+  _isEqual: (a: T, b: T) => boolean;
+  _lastValue: Optional<T>;
+  constructor(context: Context, source: Flow<T>, isEqual: (a: T, b: T) => boolean, name?: string) {
+    super(context, [source], name || "DistinctUntilChangedFlow");
+    this._isEqual = isEqual;
+    this._lastValue = Optional.empty();
+  }
+  _source_changed(): boolean {
+    const isNewValue = this._lastValue.if_else(
+      (lastValue: T) => {
+        return !this._isEqual(this._sources[0].value, lastValue);
+      },
+      () => {
+        return true;
+      }
+    )
+    this._lastValue = Optional.of(this._sources[0].value);
+    this._value = this._sources[0].value;
+    return isNewValue;
   }
 }
 

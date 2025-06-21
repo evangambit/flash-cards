@@ -109,6 +109,47 @@ describe('Concat', () => {
   });
 });
 
+describe('DistinctUntilChanged', () => {
+  it('distinct', () => {
+    const outputsBefore: Array<number> = [];
+    const outputsAfter: Array<number> = [];
+    const ctx = new Context();
+    const source = ctx.create_state_flow(0);
+    const distinct = source.distinctUntilChanged((a, b) => {
+      return a == b;
+    })
+    const consumeBeforeDistinct = source.consume((value: number) => {
+      outputsBefore.push(value);
+    });
+    const consumerAfterDistinct = distinct.consume((value: number) => {
+      outputsAfter.push(value);
+    });
+    consumeBeforeDistinct.turn_on();
+    consumerAfterDistinct.turn_on();
+    assert.equal(outputsBefore.length, 0);
+    assert.equal(outputsAfter.length, 0);
+    return Promise.resolve()  // Wait for flows to be processed.
+    .then(() => {
+      assert.deepEqual(outputsBefore, [0]);
+      assert.deepEqual(outputsAfter, [0]);
+      source.value = 1;
+      return Promise.resolve();
+    })
+    .then(() => {
+      assert.deepEqual(outputsBefore, [0, 1]);
+      assert.deepEqual(outputsAfter, [0, 1]);
+      source.value = 1;
+      return Promise.resolve();
+    })
+    .then(() => {
+      assert.deepEqual(outputsBefore, [0, 1, 1]);
+      assert.deepEqual(outputsAfter, [0, 1]);
+      source.value = 1;
+      return Promise.resolve();
+    });
+  })
+});
+
 describe('Flow', () => {
   it('ignore-synchronous', () => {
     const outputs: Array<number> = [];
