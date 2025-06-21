@@ -33,6 +33,10 @@ def index():
 def media_files(path):
   return send_from_directory('media', path)
 
+@app.route('/.well-known/<path:path>')
+def certbot(path):
+  return send_from_directory('.well-known', path)
+
 @app.route('/<path:path>')
 def static_files(path):
   return send_from_directory('dist', path, mimetype={
