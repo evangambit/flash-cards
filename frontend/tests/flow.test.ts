@@ -168,3 +168,81 @@ describe('Flow', () => {
     });
   });
 });
+
+function externalPromise<T>(): { promise: Promise<T>, resolve: (value: T) => void, reject: (reason?: any) => void } {
+  let resolve, reject;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+function resolveAfter<T>(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve();
+    }, ms);
+  });
+}
+
+describe('MapAsync', () => {
+  it('asyncMap', () => {
+    const outputs: Array<number> = [];
+    const ctx = new Context();
+    const source = ctx.create_state_flow(0);
+    const promises = [
+      externalPromise<number>(),
+      externalPromise<number>(),
+      externalPromise<number>(),
+      externalPromise<number>()
+    ];
+    const consumer = source.mapAsync((index: number) => {
+      setTimeout(() => {
+        promises[index].resolve(index);
+      }, 10);  // Every function takes 10ms to resolve.
+      return promises[index].promise;
+    }, -1).consume((v) => {
+      outputs.push(v);
+    });
+    consumer.turn_on();
+    return Promise.resolve()
+    .then(() => {
+      assert.deepEqual(outputs, [-1]);
+      return Promise.resolve();
+    })
+    .then(() => {
+      // The first promise hasn't resolved yet.
+      assert.deepEqual(outputs, [-1]);
+      return resolveAfter(20);  // Wait for the first promise to resolve.
+    })
+    .then(() => {
+      assert.deepEqual(outputs, [-1, 0]);
+      source.value = 1;
+    })
+    .then(() => {
+      // The second promise hasn't resolved yet (it began 0ms ago).
+      return Promise.resolve();
+    })
+    .then(() => {
+      // The second promise is still pending.
+      assert.deepEqual(outputs, [-1, 0]);
+      return resolveAfter(20);  // Wait for the second promise to resolve.
+    })
+    .then(() => {
+      assert.deepEqual(outputs, [-1, 0, 1]);
+      // Now test that interrupted asyncMap works correctly.
+      source.value = 2;
+      return resolveAfter(5);
+    })
+    .then(() => {
+      // The third promise hasn't resolved yet.
+      assert.deepEqual(outputs, [-1, 0, 1]);
+      source.value = 3;
+      return resolveAfter(20);  // Wait for the fourth promise to resolve.
+    })
+    .then(() => {
+      assert.deepEqual(outputs, [-1, 0, 1, 3]);
+    })
+  }); 
+});

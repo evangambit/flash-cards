@@ -105,8 +105,12 @@ export class Flow<T> {
   /**
    * This method is called when the flow is becoming cold.
    */
-  _becoming_cold(): void {
-  }
+  _becoming_cold(): void {}
+
+  /**
+   * This method is called when the flow is becoming hot.
+   */
+  _becoming_hot(): void {}
 
   /**
    * Tell context that this flow's value should be kept up-to-date.
@@ -168,6 +172,14 @@ export class Flow<T> {
 
   consume(f: (value: T) => void, name?: string): Consumer<T> {
     return new Consumer(this._context, [this], f, name);
+  }
+
+  // Similar to map, but the function is asynchronous.
+  //
+  // If a new value is emitted before the previous one has been processed,
+  // the async response to the previous value is ignored.
+  mapAsync<U>(f: (value: T) => Promise<U>, initialValue: U, name?: string): MapAsyncFlow<T, U> {
+    return new MapAsyncFlow(this, initialValue, f, name);
   }
 }
 
@@ -287,6 +299,33 @@ class Optional<T> {
     } else {
       return g();
     }
+  }
+}
+
+class MapAsyncFlow<T, R> extends Flow<R> {
+  _f: (value: T) => Promise<R>;
+  _counter: number;
+  _source: Flow<T>;
+  constructor(source: Flow<T>, initialValue: R, f: (value: T) => Promise<R>, name?: string) {
+    super(source._context, [source], name || "MapAsyncFlow");
+    this._value = initialValue;
+    this._counter = 0;
+    this._f = f;
+    this._source = source;
+  }
+  _source_changed(): boolean {
+    this._counter += 1;
+    const currentCounter = this._counter;
+    this._f(this._source.value)
+      .then((value: R) => {
+        if (currentCounter !== this._counter) {
+          // Ignore out-of-date values.
+          return;
+        }
+        this._value = value;
+        this._context.add_recently_updated(this);
+      });
+    return false;
   }
 }
 
@@ -425,6 +464,7 @@ export class Context {
         flow._numLiveDescendants++;
         if (flow._numLiveDescendants === 1) {
           newlyHot.add(flow);
+          flow._becoming_hot();
         }
         return true;
       });
