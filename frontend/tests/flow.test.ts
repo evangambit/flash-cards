@@ -148,6 +148,51 @@ describe('DistinctUntilChanged', () => {
       return Promise.resolve();
     });
   })
+  it('distinctDoesNotSuppressUpdateToTurningHotConsumer', () => {
+    const outputs1: Array<number> = [];
+    const outputs2: Array<number> = [];
+    const ctx = new Context();
+    const source = ctx.create_state_flow(0);
+    const distinct = source.distinctUntilChanged((a, b) => {
+      return a == b;
+    });
+    const consumer1 = source.consume((value: number) => {
+      outputs1.push(value);
+    });
+    const consumer2 = distinct.consume((value: number) => {
+      outputs2.push(value);
+    });
+    assert.deepEqual(outputs1, []);
+    assert.deepEqual(outputs2, []);
+    consumer1.turn_on();
+    consumer2.turn_on();
+    return Promise.resolve()
+    .then(() => {
+      assert.deepEqual(outputs1, [0]);
+      assert.deepEqual(outputs2, [0]);
+      source.value = 1;
+      consumer1.turn_off();
+      return Promise.resolve();
+    })
+    .then(() => {
+      assert.deepEqual(outputs1, [0]);     // Consumer1 is off, so no new values are pushed.
+      assert.deepEqual(outputs2, [0, 1]);  // Consumer2 is still on, so it receives the new value.
+      source.value = 1;
+      return Promise.resolve();
+    })
+    .then(() => {
+      assert.deepEqual(outputs1, [0]);     // No change for Consumer1 (still off).
+      assert.deepEqual(outputs2, [0, 1]);  // Consumer2's update was suppressed by distinctUntilChanged.
+      consumer1.turn_on();
+      return Promise.resolve();
+    })
+    .then(() => {
+      assert.deepEqual(outputs1, [0, 1]);  // Consumer1 is back on, so it receives the latest value.
+      assert.deepEqual(outputs2, [0, 1]);  // Consumer2 remains unchanged.
+      source.value = 2;
+      return Promise.resolve();
+    })
+  })
 });
 
 describe('Flow', () => {
